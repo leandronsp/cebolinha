@@ -1,0 +1,9 @@
+services:
+  app:
+    build:
+      context: .
+      target: runtime
+    container_name: cebolinha
+    hostname: cebolinha
+    ports:
+      - "3000:3000"
