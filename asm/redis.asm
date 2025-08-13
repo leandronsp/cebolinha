@@ -40,6 +40,10 @@ redis_connect:
 	mov rdx, SOCK_PROTOCOL
 	mov rax, SYS_socket
 	syscall
+	
+	; Check if socket creation failed
+	cmp rax, 0
+	jl .error
 	mov [redis_sockfd], rax
 
 	; Connect to Redis server
@@ -48,19 +52,42 @@ redis_connect:
 	mov rdx, 16
 	mov rax, SYS_connect
 	syscall
+	
+	; Check if connection failed
+	cmp rax, 0
+	jl .error
 	ret
 
-redis_disconnect:
-	; Close Redis connection
+.error:
+	; Connection failed, close socket if it was created
+	cmp qword [redis_sockfd], 0
+	jle .skip_close
 	mov rdi, [redis_sockfd]
 	mov rax, SYS_close
 	syscall
+.skip_close:
+	; Set socket to invalid value
+	mov qword [redis_sockfd], -1
+	ret
+
+redis_disconnect:
+	; Close Redis connection only if valid
+	cmp qword [redis_sockfd], 0
+	jle .skip_disconnect
+	mov rdi, [redis_sockfd]
+	mov rax, SYS_close
+	syscall
+.skip_disconnect:
 	ret
 
 redis_publish_hello:
 	; Connect to Redis
 	call redis_connect
-
+	
+	; Check if connection succeeded
+	cmp qword [redis_sockfd], -1
+	je .failed
+	
 	; Send PUBLISH command
 	mov rdi, [redis_sockfd]
 	mov rsi, redis_publish_msg
@@ -70,4 +97,8 @@ redis_publish_hello:
 
 	; Disconnect from Redis
 	call redis_disconnect
+	ret
+
+.failed:
+	; Redis connection failed, just return (don't crash the server)
 	ret
