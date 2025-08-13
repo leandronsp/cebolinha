@@ -7,6 +7,7 @@ global _start
 %define SYS_write 1
 %define SYS_close 3
 
+%define SYS_nanosleep 35
 %define SYS_clone 56
 %define SYS_brk 12
 %define SYS_exit 60
@@ -247,6 +248,10 @@ handle:
 	jmp handle       
 
 action:
+	lea rdi, [timespec]
+	mov rax, SYS_nanosleep
+	syscall
+
 	; int write(fd)
 	mov rdi, r10
 	mov rsi, response
