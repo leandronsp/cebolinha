@@ -4,7 +4,7 @@
 %define LF 0xA
 
 section .data
-response: 
+response:
 	headline: db "HTTP/1.1 200 OK", CR, LF
 	content_type: db "Content-Type: text/html", CR, LF
 	content_length: db "Content-Length: 22", CR, LF

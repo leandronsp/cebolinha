@@ -16,16 +16,16 @@ global wait_condvar
 
 lock_mutex:
    mov rax, 0
-   xchg rax, [mutex]   
-   test rax, rax       
-   jnz .done           
-   pause               
-   jmp lock_mutex     
+   xchg rax, [mutex]
+   test rax, rax
+   jnz .done
+   pause
+   jmp lock_mutex
 .done:
    ret
 
 unlock_mutex:
-   mov qword [mutex], 1  
+   mov qword [mutex], 1
    ret
 
 emit_signal:
@@ -39,11 +39,11 @@ emit_signal:
    ret
 
 wait_condvar:
-   mov rdi, condvar           
-   mov rsi, FUTEX_WAIT | FUTEX_PRIVATE_FLAG 
+   mov rdi, condvar
+   mov rsi, FUTEX_WAIT | FUTEX_PRIVATE_FLAG
    xor rdx, rdx
-   xor r10, r10              
-   xor r8, r8               
+   xor r10, r10
+   xor r8, r8
    mov rax, SYS_futex
    syscall
    test rax, rax

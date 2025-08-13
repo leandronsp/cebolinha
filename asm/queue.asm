@@ -2,7 +2,7 @@
 %include "asm/include/common.inc"
 
 extern lock_mutex
-extern unlock_mutex  
+extern unlock_mutex
 extern emit_signal
 
 section .data
@@ -27,8 +27,8 @@ enqueue:
 	je .resize
 
 	xor rdx, rdx
-	mov dl, [queuePtr]	
-	mov [queue + rdx], r8	
+	mov dl, [queuePtr]
+	mov [queue + rdx], r8
 	inc byte [queuePtr]
 .done_enqueue:
 	call emit_signal
