@@ -14,6 +14,7 @@
 
 ; Network system calls
 %define SYS_socket 41
+%define SYS_connect 42
 %define SYS_bind 49
 %define SYS_listen 50
 
