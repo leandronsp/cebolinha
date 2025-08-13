@@ -3,8 +3,6 @@
 SOURCES = $(wildcard asm/*.asm)
 OBJECTS = $(SOURCES:asm/%.asm=build/%.o)
 
-all: bin/server
-
 build/%.o: asm/%.asm
 	nasm -f elf64 -o $@ $<
 

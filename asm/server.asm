@@ -1,5 +1,9 @@
 global _start
 extern timer_sleep
+extern lock_mutex
+extern unlock_mutex
+extern emit_signal
+extern wait_condvar
 
 %include "asm/include/syscalls.inc"
 
@@ -20,10 +24,6 @@ extern timer_sleep
 %define CLONE_SIGHAND 0x00000800
 
 %define QUEUE_OFFSET_CAPACITY 5
-
-%define FUTEX_WAIT 0
-%define FUTEX_WAKE 1
-%define FUTEX_PRIVATE_FLAG 128
 
 %define PROT_READ 0x1
 %define PROT_WRITE 0x2
@@ -46,8 +46,6 @@ response:
 responseLen: equ $ - response
 queuePtr: db 0
 queueSize: db QUEUE_OFFSET_CAPACITY
-mutex: dq 1
-condvar: dq 0
 
 section .bss
 sockfd: resb 8
@@ -169,42 +167,6 @@ dequeue:
 	call unlock_mutex
 	ret
 
-lock_mutex:
-   mov rax, 0
-   xchg rax, [mutex]   
-   test rax, rax       
-   jnz .done           
-   pause               
-   jmp lock_mutex     
-.done:
-   ret
-
-unlock_mutex:
-   mov qword [mutex], 1  
-   ret
-
-emit_signal:
-   mov rdi, condvar
-   mov rsi, FUTEX_WAKE | FUTEX_PRIVATE_FLAG  ; the difference is in the FUTEX_WAKE flag
-   xor rdx, rdx
-   xor r10, r10
-   xor r8, r8
-   mov rax, SYS_futex
-   syscall
-   ret
-
-wait_condvar:
-   mov rdi, condvar           
-   mov rsi, FUTEX_WAIT | FUTEX_PRIVATE_FLAG 
-   xor rdx, rdx
-   xor r10, r10              
-   xor r8, r8               
-   mov rax, SYS_futex
-   syscall
-   test rax, rax
-   jz .done_condvar
-.done_condvar:
-   ret
 
 thread:
 	mov rdi, 0x0
