@@ -5,7 +5,7 @@ For macOS using Lima:
 ```bash
 $ limactl start --name ubuntu --arch x86_64 --rosetta --mount-writable --cpus 4 --disk 20
 $ limactl shell ubuntu
-$ sudo apt install nasm binutils gdb
+$ sudo apt install nasm binutils gdb make
 $ nasm -f elf64 -o asm/server.o asm/server.asm
 $ ld -o server asm/server.o
 $ ./server
