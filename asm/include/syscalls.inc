@@ -2,6 +2,7 @@
 ; Used by all modules in the Cebolinha HTTP server
 
 ; I/O system calls
+%define SYS_read 0
 %define SYS_write 1
 %define SYS_close 3
 

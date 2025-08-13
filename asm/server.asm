@@ -16,6 +16,9 @@ extern listen_socket
 extern accept_connection
 extern send_response
 extern close_connection
+extern read_request
+extern parse_request
+extern print_request_info
 extern create_thread
 
 %include "asm/include/syscalls.inc"
@@ -71,7 +74,10 @@ handle:
 	jmp handle
 
 action:
-	call timer_sleep
-	call send_response
-	call close_connection
+	call read_request       ; Read HTTP request
+	call parse_request      ; Parse verb and path
+	call print_request_info ; Print to stdout
+	call timer_sleep        ; Keep existing delay
+	call send_response      ; Send HTTP response
+	call close_connection   ; Close socket
 	ret
