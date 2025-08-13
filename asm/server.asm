@@ -1,18 +1,6 @@
 global _start
 
-%define SYS_socket 41
-%define SYS_bind 49
-%define SYS_listen 50
-%define SYS_accept4 288
-%define SYS_write 1
-%define SYS_close 3
-
-%define SYS_nanosleep 35
-%define SYS_clone 56
-%define SYS_brk 12
-%define SYS_exit 60
-%define SYS_futex 202
-%define SYS_mmap 9
+%include "asm/include/syscalls.inc"
 
 %define AF_INET 2
 %define SOCK_STREAM 1
