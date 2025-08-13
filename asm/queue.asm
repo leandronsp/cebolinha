@@ -1,10 +1,9 @@
 %include "asm/include/syscalls.inc"
+%include "asm/include/common.inc"
 
 extern lock_mutex
 extern unlock_mutex  
 extern emit_signal
-
-%define QUEUE_OFFSET_CAPACITY 5
 
 section .data
 queuePtr: db 0

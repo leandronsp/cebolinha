@@ -11,6 +11,7 @@ extern queueSize
 extern queue
 
 %include "asm/include/syscalls.inc"
+%include "asm/include/common.inc"
 
 %define AF_INET 2
 %define SOCK_STREAM 1
@@ -60,7 +61,7 @@ _start:
 	mov [queue], rax
 
 	mov rdi, rax
-	add rdi, 5  ; QUEUE_OFFSET_CAPACITY
+	add rdi, QUEUE_OFFSET_CAPACITY
 	mov rax, SYS_brk
 	syscall
 .initialize_pool:
