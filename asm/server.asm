@@ -44,12 +44,12 @@ _start:
 	cmp r8, 5
 	je .socket
 	jmp .pool
+
 .socket:
 	call create_socket
-.bind:
 	call bind_socket
-.listen:
 	call listen_socket
+
 .accept:
 	call accept_connection
 
