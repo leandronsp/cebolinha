@@ -41,7 +41,7 @@ _start:
 	mov rdi, handle
 	call create_thread
 	inc r8
-	cmp r8, 5
+	cmp r8, THREAD_POOL_SIZE
 	je .socket
 	jmp .pool
 
