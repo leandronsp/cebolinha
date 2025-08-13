@@ -14,12 +14,11 @@ extern create_socket
 extern bind_socket
 extern listen_socket
 extern accept_connection
+extern send_response
+extern close_connection
 
 %include "asm/include/syscalls.inc"
 %include "asm/include/common.inc"
-
-%define CR 0xD
-%define LF 0xA
 
 %define CHILD_STACK_SIZE 4096
 %define CLONE_VM 0x00000100
@@ -35,15 +34,6 @@ extern accept_connection
 %define MAP_GROWSDOWN 0x100
 %define MAP_ANONYMOUS 0x0020     
 %define MAP_PRIVATE 0x0002      
-
-section .data
-response: 
-	headline: db "HTTP/1.1 200 OK", CR, LF
-	content_type: db "Content-Type: text/html", CR, LF
-	content_length: db "Content-Length: 22", CR, LF
-	crlf: db CR, LF
-	body: db "<h1>Hello, World!</h1>"
-responseLen: equ $ - response
 
 section .bss
 
@@ -110,16 +100,6 @@ handle:
 
 action:
 	call timer_sleep
-
-	; int write(fd)
-	mov rdi, r10
-	mov rsi, response
-	mov rdx, responseLen
-	mov rax, SYS_write
-	syscall
-
-	; int close(fd)
-	mov rdi, r10
-	mov rax, SYS_close
-	syscall
+	call send_response
+	call close_connection
 	ret
