@@ -11,6 +11,8 @@ path_ptr: resq 1              ; Pointer to path start
 path_len: resq 1              ; Length of path
 content_length_value: resq 1  ; Store the actual content length number
 headers_start_ptr: resq 1     ; Pointer to start of headers (after headline CRLF)
+body_ptr: resq 1              ; Pointer to body start
+body_len: resq 1              ; Length of body (copy of content_length_value)
 
 section .data
 debug_verb_msg: db "Verb: "
@@ -122,6 +124,7 @@ parse_request:
 
 	pop rcx
 	pop rbx
+	ret
 
 parse_headers:
 	push rbx
@@ -200,6 +203,13 @@ parse_headers:
 	
 .headers_done:
 debug:
+	; rbx points to CR of empty line (CRLF CRLF)
+	; Body starts after the CRLF
+	add rbx, 2              ; Skip CRLF
+	mov [body_ptr], rbx     ; Save body start pointer
+	mov rax, [content_length_value]
+	mov [body_len], rax     ; Save body length
+	
 	pop rsi
 	pop rdi
 	pop rdx

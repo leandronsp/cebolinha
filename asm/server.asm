@@ -18,6 +18,7 @@ extern send_response
 extern close_connection
 extern read_request
 extern parse_request
+extern parse_headers
 extern print_request_info
 extern create_thread
 ;extern redis_publish_hello
@@ -77,6 +78,7 @@ handle:
 action:
 	call read_request       ; Read HTTP request
 	call parse_request      ; Parse verb and path
+	call parse_headers      ; Parse headers and body
 	call print_request_info ; Print to stdout
 	;call redis_publish_hello ; Publish to Redis
 	call timer_sleep        ; Keep existing delay
