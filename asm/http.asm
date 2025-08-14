@@ -37,6 +37,12 @@ global read_request
 global parse_request
 global print_request_info
 global parse_headers
+global verb_ptr
+global verb_len
+global path_ptr
+global path_len
+global body_ptr
+global body_len
 
 send_response:
 	; fd is in r10

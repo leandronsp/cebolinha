@@ -21,6 +21,8 @@ extern parse_request
 extern parse_headers
 extern print_request_info
 extern create_thread
+extern route_request
+extern send_payments_response
 ;extern redis_publish_hello
 
 %include "asm/include/syscalls.inc"
@@ -80,8 +82,22 @@ action:
 	call parse_request      ; Parse verb and path
 	call parse_headers      ; Parse headers and body
 	call print_request_info ; Print to stdout
+	
+	; Check for specific routes
+	call route_request
+	cmp rax, 1
+	je .route_handled
+	
+	; Default route - unhandled
 	;call redis_publish_hello ; Publish to Redis
 	call timer_sleep        ; Keep existing delay
 	call send_response      ; Send HTTP response
+	jmp .close
+	
+.route_handled:
+	; Specific route handled - send custom response
+	call send_payments_response
+	
+.close:
 	call close_connection   ; Close socket
 	ret
