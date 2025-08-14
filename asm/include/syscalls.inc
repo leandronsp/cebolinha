@@ -17,6 +17,7 @@
 %define SYS_connect 42
 %define SYS_bind 49
 %define SYS_listen 50
+%define SYS_setsockopt 54
 
 ; Threading system calls
 %define SYS_clone 56

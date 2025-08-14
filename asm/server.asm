@@ -20,7 +20,7 @@ extern read_request
 extern parse_request
 extern print_request_info
 extern create_thread
-extern redis_publish_hello
+;extern redis_publish_hello
 
 %include "asm/include/syscalls.inc"
 %include "asm/include/common.inc"
@@ -78,7 +78,7 @@ action:
 	call read_request       ; Read HTTP request
 	call parse_request      ; Parse verb and path
 	call print_request_info ; Print to stdout
-	call redis_publish_hello ; Publish to Redis
+	;call redis_publish_hello ; Publish to Redis
 	call timer_sleep        ; Keep existing delay
 	call send_response      ; Send HTTP response
 	call close_connection   ; Close socket

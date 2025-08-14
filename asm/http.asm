@@ -9,6 +9,8 @@ verb_ptr: resq 1              ; Pointer to verb start
 verb_len: resq 1              ; Length of verb
 path_ptr: resq 1              ; Pointer to path start
 path_len: resq 1              ; Length of path
+content_length_value: resq 1  ; Store the actual content length number
+headers_start_ptr: resq 1     ; Pointer to start of headers (after headline CRLF)
 
 section .data
 debug_verb_msg: db "Verb: "
@@ -16,6 +18,8 @@ debug_verb_msg_len: equ $ - debug_verb_msg
 debug_path_msg: db "Path: "
 debug_path_msg_len: equ $ - debug_path_msg
 newline: db 10
+content_length_header: db "Content-Length:"
+content_length_header_len: equ $ - content_length_header
 response:
 	headline: db "HTTP/1.1 200 OK", CR, LF
 	content_type: db "Content-Type: text/html", CR, LF
@@ -30,6 +34,7 @@ global close_connection
 global read_request
 global parse_request
 global print_request_info
+global parse_headers
 
 send_response:
 	; fd is in r10
@@ -103,6 +108,101 @@ parse_request:
 	; Store path length
 	mov [path_len], rcx
 
+	; Skip to end of headline (find LF after CR)
+.skip_to_headers:
+	mov al, [rsi]
+	cmp al, LF
+	je .found_headline_end
+	inc rsi
+	jmp .skip_to_headers
+
+.found_headline_end:
+	inc rsi                    ; Skip the LF
+	mov [headers_start_ptr], rsi  ; Save headers start position
+
+	pop rcx
+	pop rbx
+
+parse_headers:
+	push rbx
+	push rcx
+	push rdx
+	push rdi
+	push rsi
+	
+	mov rbx, [headers_start_ptr]
+	mov qword [content_length_value], 0  ; Initialize to 0
+	
+.next_header:
+	; Check if we hit empty line (CRLF CRLF = end of headers)
+	mov al, [rbx]
+	cmp al, CR
+	jne .check_content_length
+	mov al, [rbx + 1]
+	cmp al, LF
+	jne .check_content_length
+	
+	; Found end of headers
+	jmp .headers_done
+	
+.check_content_length:
+	; Use repe cmpsb to compare "Content-Length:"
+	mov rdi, rbx                        ; current header line
+	mov rsi, content_length_header      ; target string
+	mov rcx, content_length_header_len  ; string length
+	repe cmpsb
+	je .found_content_length           ; strings match
+	
+.skip_line:
+	; Skip to next line
+	mov al, [rbx]
+	cmp al, LF
+	je .next_line
+	inc rbx
+	jmp .skip_line
+	
+.next_line:
+	inc rbx                 ; Skip LF
+	jmp .next_header
+	
+.found_content_length:
+	; rbx points after "Content-Length:"
+	mov rbx, rdi            ; rdi was advanced by repe cmpsb
+	
+	; Skip spaces
+.skip_spaces:
+	mov al, [rbx]
+	cmp al, ' '
+	jne .parse_number
+	inc rbx
+	jmp .skip_spaces
+	
+.parse_number:
+	xor rax, rax            ; Clear accumulator
+	xor rcx, rcx            ; Clear temp
+	
+.digit_loop:
+	mov cl, [rbx]
+	cmp cl, '0'
+	jl .number_done
+	cmp cl, '9'
+	jg .number_done
+	
+	sub cl, '0'            ; Convert ASCII to number
+	imul rax, 10           ; Multiply current by 10
+	add rax, rcx           ; Add new digit
+	inc rbx
+	jmp .digit_loop
+	
+.number_done:
+	mov [content_length_value], rax
+	jmp .skip_line         ; Continue parsing other headers
+	
+.headers_done:
+debug:
+	pop rsi
+	pop rdi
+	pop rdx
 	pop rcx
 	pop rbx
 	ret

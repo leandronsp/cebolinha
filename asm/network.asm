@@ -4,6 +4,8 @@
 %define SOCK_STREAM 1
 %define SOCK_PROTOCOL 0
 %define BACKLOG 2
+%define SOL_SOCKET 1
+%define SO_REUSEADDR 2
 
 section .data
 sockaddr:
@@ -29,6 +31,18 @@ create_socket:
 	mov rax, SYS_socket
 	syscall
 	mov [sockfd], rax
+	
+	; Set SO_REUSEADDR option
+	mov rdi, [sockfd]       ; socket fd
+	mov rsi, SOL_SOCKET     ; level
+	mov rdx, SO_REUSEADDR   ; option name
+	mov r10, rsp            ; pointer to option value
+	sub rsp, 8              ; allocate space for int value
+	mov dword [rsp], 1      ; enable option (value = 1)
+	mov r8, 4               ; option length (sizeof(int))
+	mov rax, SYS_setsockopt
+	syscall
+	add rsp, 8              ; restore stack
 	ret
 
 bind_socket:
