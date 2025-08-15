@@ -30,8 +30,18 @@ response:
 	body: db "<h1>Hello, World!</h1>"
 responseLen: equ $ - response
 
+; 404 Not Found response
+not_found_response:
+	db "HTTP/1.1 404 Not Found", CR, LF
+	db "Content-Type: application/json", CR, LF
+	db "Content-Length: 22", CR, LF
+	db CR, LF
+	db '{"error":"Not Found"}'
+not_found_response_len: equ $ - not_found_response
+
 section .text
 global send_response
+global send_not_found_response
 global close_connection
 global read_request
 global parse_request
@@ -49,6 +59,15 @@ send_response:
 	mov rdi, r10
 	mov rsi, response
 	mov rdx, responseLen
+	mov rax, SYS_write
+	syscall
+	ret
+
+send_not_found_response:
+	; fd is in r10
+	mov rdi, r10
+	mov rsi, not_found_response
+	mov rdx, not_found_response_len
 	mov rax, SYS_write
 	syscall
 	ret

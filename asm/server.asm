@@ -1,5 +1,4 @@
 global _start
-extern timer_sleep
 extern lock_mutex
 extern unlock_mutex
 extern emit_signal
@@ -15,6 +14,7 @@ extern bind_socket
 extern listen_socket
 extern accept_connection
 extern send_response
+extern send_not_found_response
 extern close_connection
 extern read_request
 extern parse_request
@@ -23,7 +23,6 @@ extern print_request_info
 extern create_thread
 extern route_request
 extern send_payments_response
-;extern redis_publish_hello
 
 %include "asm/include/syscalls.inc"
 %include "asm/include/common.inc"
@@ -85,18 +84,17 @@ action:
 	
 	; Check for specific routes
 	call route_request
-	cmp rax, 1
-	je .route_handled
+	cmp rax, 0
+	je .default_route
 	
-	; Default route - unhandled
-	;call redis_publish_hello ; Publish to Redis
-	call timer_sleep        ; Keep existing delay
-	call send_response      ; Send HTTP response
+	; Specific route handled - rax contains Redis result (1=success, 2=error)
+	; Send custom response based on Redis result
+	call send_payments_response
 	jmp .close
 	
-.route_handled:
-	; Specific route handled - send custom response
-	call send_payments_response
+.default_route:
+	; Default route - unhandled (404 Not Found)
+	call send_not_found_response ; Send 404 response
 	
 .close:
 	call close_connection   ; Close socket

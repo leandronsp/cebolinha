@@ -1,24 +1,96 @@
-# Simple dynamic Makefile for Cebolinha assembly modules
+SHELL = /bin/bash
+.ONESHELL:
+.DEFAULT_GOAL: help
 
-SOURCES = $(wildcard asm/*.asm)
-OBJECTS = $(SOURCES:asm/%.asm=build/%.o)
+help: ## Prints available commands
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make \033[36m<target>\033[0m\n"} /^[.a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
-build/%.o: asm/%.asm | build
-	nasm -g -F dwarf -f elf64 -o $@ $<
+processors.up: ## Start the payment processor service
+	docker compose -f docker-compose.processor.yml up -d
 
-bin/server: $(OBJECTS) | bin
-	ld -g -o $@ $^
+processors.down: ## Stop the payment processor service
+	docker compose -f docker-compose.processor.yml down --remove-orphans
 
-build bin:
-	mkdir -p $@
+processors.logs: ## View logs for the payment processor service
+	docker compose -f docker-compose.processor.yml logs -f
 
-run: bin/server
-	./bin/server
+compose.down: ## Stop all services and remove containers
+	@docker compose down --remove-orphans
 
-debug: bin/server
-	gdb -q -x debug_http.gdb bin/server
+compose.logs: ## View logs for all services
+	@docker compose logs -f
 
-clean: 
-	rm -rf build bin
+api.setup: ## Set up the API service
+	@docker compose build
 
-.PHONY: all run debug
+start.dev: ## Start the development environment
+	@make processors.up
+	@docker compose up -d nginx
+
+api.bash: ## Open a bash shell in the API container
+	@docker compose run --rm api01 bash
+
+docker.stats: ## Show docker stats
+	@docker stats --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}"
+
+processors.test: ## Test payment processor endpoints (health and payments)
+	@./scripts/test-health.sh
+	@./scripts/test-processors.sh
+
+processors.summary: ## Test payment processor endpoints (health and payments)
+	@./scripts/test-processors-summary.sh
+
+processors.purge: ## Purge payment processor data
+	@./scripts/purge-processors.sh
+
+processors.logs: ## View logs for the payment processor service
+	@docker compose -f docker-compose.processor.yml logs -f
+
+api.test.payments: ## Test POST /payments endpoint via nginx
+	@./scripts/test-api-payments.sh
+
+api.test.summary: ## Test GET /payments-summary endpoint via nginx
+	@./scripts/test-api-summary.sh
+
+api.test.purge: ## Test POST /purge-payments endpoint via nginx
+	@./scripts/test-api-purge.sh
+
+api.test.e2e: ## Run end-to-end tests for the API
+	@./scripts/e2e.sh
+
+rinha: ## Run k6 performance test (Rinha de Backend)
+	@./scripts/reset.sh
+	@./scripts/rinha.sh
+
+rinha.official: ## Run official Rinha test with scoring
+	@./scripts/reset.sh
+	@./scripts/run-local-test.sh
+
+docker.build: ## Build the docker image
+	@docker build -t leandronsp/cebolinha --target asm-api --platform linux/amd64 .
+
+docker.push: ## Push the docker image
+	@docker push leandronsp/cebolinha
+
+##@ Assembly Build Commands
+
+asm.clean: ## Clean assembly build artifacts
+	@rm -rf build bin
+
+asm.build: ## Build assembly server
+	@mkdir -p build bin
+	@nasm -g -F dwarf -f elf64 -o build/server.o asm/server.asm
+	@nasm -g -F dwarf -f elf64 -o build/sync.o asm/sync.asm
+	@nasm -g -F dwarf -f elf64 -o build/queue.o asm/queue.asm
+	@nasm -g -F dwarf -f elf64 -o build/network.o asm/network.asm
+	@nasm -g -F dwarf -f elf64 -o build/http.o asm/http.asm
+	@nasm -g -F dwarf -f elf64 -o build/handler.o asm/handler.asm
+	@nasm -g -F dwarf -f elf64 -o build/redis.o asm/redis.asm
+	@nasm -g -F dwarf -f elf64 -o build/threading.o asm/threading.asm
+	@ld -g -o bin/server build/*.o
+
+asm.run: asm.build ## Build and run assembly server
+	@./bin/server
+
+asm.debug: asm.build ## Build and debug assembly server with GDB
+	@gdb -q bin/server

@@ -18,7 +18,9 @@ asm/
 ├── sync.asm         # Mutex and condition variable primitives
 ├── queue.asm        # Thread-safe queue management
 ├── network.asm      # Socket operations (create, bind, listen, accept)
-├── http.asm         # HTTP response generation and connection handling
+├── http.asm         # HTTP request/response parsing and handling
+├── handler.asm      # Route matching and request handling
+├── redis.asm        # Redis client with RESP protocol implementation
 ├── threading.asm    # Thread creation and stack management
 └── include/
     ├── syscalls.inc # Linux system call numbers
@@ -29,6 +31,9 @@ asm/
 - **Multi-threaded HTTP server**: Thread pool with 5 worker threads using Linux clone() syscalls
 - **Custom thread synchronization**: Mutex and condition variables using futex syscalls
 - **Dynamic queue management**: Thread-safe queue with automatic resizing using brk() syscalls
+- **HTTP request parsing**: Full HTTP/1.1 request parsing (verb, path, headers, body)
+- **REST API routing**: POST /payments endpoint with JSON body handling
+- **Redis integration**: Direct Redis RESP protocol client for message publishing
 - **Pure syscall implementation**: No libc dependencies - all functionality via direct Linux syscalls
 - **Modular design**: Each module has single responsibility with clear interfaces
 
@@ -36,7 +41,10 @@ asm/
 - Socket creation, binding, and listening on port 3000
 - Thread pool management with custom threading primitives
 - Producer-consumer pattern with work queue for connection handling
-- HTTP response generation (returns "Hello, World!" HTML page)
+- HTTP request parsing (verb, path, Content-Length header, body)
+- Route matching and handling (POST /payments)
+- Redis client with RESP protocol for publishing JSON payloads
+- Error handling with proper HTTP status codes (200, 404, 500)
 
 ## Build Commands
 
@@ -45,6 +53,7 @@ asm/
 make clean      # Clean build artifacts
 make            # Build the server
 make run        # Build and run the server
+make debug      # Build and run with GDB debugger
 ```
 
 ### Manual Build on Linux (requires NASM and binutils)
@@ -117,14 +126,76 @@ When working on this codebase:
 - **sync.asm**: Exports mutex/condvar functions - uses futex syscalls
 - **queue.asm**: Expects `r8` for enqueue input, returns `rax` from dequeue
 - **network.asm**: Socket functions operate on global `sockfd`
-- **http.asm**: Expects file descriptor in `r10` for response operations
+- **http.asm**: 
+  - Expects file descriptor in `r10` for response operations
+  - Exports global variables: `verb_ptr`, `verb_len`, `path_ptr`, `path_len`, `body_ptr`, `body_len`
+  - Functions: `parse_request`, `parse_headers`, `send_response`, `send_not_found_response`
+- **handler.asm**: Route matching and handling - returns success/failure in `rax`
+- **redis.asm**: 
+  - `redis_publish_body(body_ptr, body_len)` - publishes JSON to Redis "payments" channel
+  - Uses stack-based parameters: `rsi` = body_ptr, `rdx` = body_len
+  - Returns 1 for success, 0 for failure
 - **threading.asm**: Takes handler address in `rdi`, creates thread with stack
+
+## API Testing
+
+### POST /payments Endpoint
+The server implements a REST API endpoint for payment processing:
+
+```bash
+# Test with curl
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{
+    "correlationId": "123e4567-e89b-12d3-a456-426614174000",
+    "amount": 42.50,
+    "requestedAt": "2025-01-15T10:30:00.000Z"
+  }' \
+  http://localhost:3000/payments
+```
+
+**Responses:**
+- `200 OK`: `{"message":"enqueued"}` - Successfully published to Redis
+- `500 Internal Server Error`: `{"error":"Redis publish failed"}` - Redis connection failed
+- `404 Not Found`: `{"error":"Not Found"}` - All other routes
+
+### Redis Integration
+The server publishes JSON payloads directly to Redis using the RESP protocol:
+- Channel: `payments`
+- Payload: Raw JSON body from HTTP request
+- No JSON parsing in assembly - passes through as-is
+
+## Debugging
+
+### GDB Debugging Assembly
+```bash
+make debug                                   # Start with GDB
+(gdb) break asm/redis.asm:158               # Set breakpoint in Redis function
+(gdb) info registers                        # View all registers
+(gdb) x/s $rsi                              # View string at register
+(gdb) x/14c $rsi                            # View 14 characters
+(gdb) print/x $rax                          # View register in hex
+```
+
+### Common Assembly Debugging Patterns
+- **Register inspection**: `info registers`, `print $rax`
+- **Memory examination**: `x/s address`, `x/10c address`, `x/8x address`
+- **Stack inspection**: `x/8x $rsp` to see stack contents
+- **Step execution**: `stepi` for single instruction, `nexti` for next instruction
+
+### Register Corruption Debugging
+Watch for these common issues:
+- **Stack misalignment**: `push`/`pop` mismatch causing wrong values
+- **String instruction side effects**: `rep movsb` modifies `rcx`, `rsi`, `rdi`
+- **Function call preservation**: Save/restore registers across calls
+- **Parameter passing**: Stack-based vs register-based parameter conflicts
 
 ## System Requirements
 
 - Linux x86-64 system
 - NASM assembler
 - GNU binutils (ld linker)
+- Redis server (for testing POST /payments)
 - Docker (for containerized builds)
 
 The Dockerfile handles all build dependencies automatically for containerized deployment.

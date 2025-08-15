@@ -10,6 +10,7 @@ extern path_ptr
 extern path_len
 extern body_ptr
 extern body_len
+extern redis_publish_body
 
 section .data
 ; Route matching strings
@@ -19,13 +20,22 @@ payments_path: db "/payments"
 payments_path_len: equ $ - payments_path
 
 ; Payment success response (JSON)
-payments_response:
+payments_success_response:
 	db "HTTP/1.1 200 OK", CR, LF
 	db "Content-Type: application/json", CR, LF
 	db "Content-Length: 23", CR, LF
 	db CR, LF
 	db '{"message":"enqueued"}'
-payments_response_len: equ $ - payments_response
+payments_success_len: equ $ - payments_success_response
+
+; Payment Redis failure response (JSON)
+payments_error_response:
+	db "HTTP/1.1 500 Internal Server Error", CR, LF
+	db "Content-Type: application/json", CR, LF
+	db "Content-Length: 33", CR, LF
+	db CR, LF
+	db '{"error":"Redis publish failed"}'
+payments_error_len: equ $ - payments_error_response
 
 section .text
 global route_request
@@ -36,8 +46,13 @@ route_request:
 	; Check if POST /payments
 	call check_post_payments
 	cmp rax, 1
-	je handle_post_payments
+	jne .not_handled
 	
+	; Handle POST /payments and return Redis result
+	call handle_post_payments
+	ret
+	
+.not_handled:
 	; Default: return 0 (not handled)
 	xor rax, rax
 	ret
@@ -81,18 +96,32 @@ check_post_payments:
 	ret
 
 handle_post_payments:
-	; Process payment (for now, just return success)
-	; In future: parse JSON from body_ptr/body_len
+	; Publish JSON body to Redis payments channel
+	mov rsi, [body_ptr]
+	mov rdx, [body_len]
+	call redis_publish_body
 	
-	; Set response handled flag
-	mov rax, 1  ; success
+	; Set response handled flag (rax already contains Redis result)
 	ret
 
 send_payments_response:
-	; fd is in r10
+	; Check Redis result (in rax from handle_post_payments)
+	cmp rax, 1
+	je .send_success
+	
+	; Send error response
 	mov rdi, r10
-	mov rsi, payments_response
-	mov rdx, payments_response_len
+	mov rsi, payments_error_response
+	mov rdx, payments_error_len
+	mov rax, SYS_write
+	syscall
+	ret
+	
+.send_success:
+	; Send success response
+	mov rdi, r10
+	mov rsi, payments_success_response
+	mov rdx, payments_success_len
 	mov rax, SYS_write
 	syscall
 	ret
