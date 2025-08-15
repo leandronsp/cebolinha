@@ -30,7 +30,7 @@ unlock_mutex:
 
 emit_signal:
    mov rdi, condvar
-   mov rsi, FUTEX_WAKE | FUTEX_PRIVATE_FLAG
+   mov rsi, FUTEX_WAKE
    xor rdx, rdx
    xor r10, r10
    xor r8, r8
@@ -40,7 +40,7 @@ emit_signal:
 
 wait_condvar:
    mov rdi, condvar
-   mov rsi, FUTEX_WAIT | FUTEX_PRIVATE_FLAG
+   mov rsi, FUTEX_WAIT
    xor rdx, rdx
    xor r10, r10
    xor r8, r8

@@ -4,10 +4,9 @@
 %define CLONE_VM 0x00000100
 %define CLONE_FS 0x00000200
 %define CLONE_FILES 0x00000400
-%define CLONE_PARENT 0x00008000
 %define CLONE_THREAD 0x00010000
-%define CLONE_IO 0x80000000
 %define CLONE_SIGHAND 0x00000800
+%define CLONE_SYSVSEM 0x00040000
 
 %define PROT_READ 0x1
 %define PROT_WRITE 0x2
@@ -38,8 +37,8 @@ create_thread:
 	lea rsi, [rax + CHILD_STACK_SIZE - 8]
 	mov qword [rsi], rdx
 
-	; Create thread
-	mov rdi, CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_PARENT|CLONE_THREAD|CLONE_IO
+	; Create thread with container-compatible flags
+	mov rdi, CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM
 	mov rax, SYS_clone
 	syscall
 	ret
