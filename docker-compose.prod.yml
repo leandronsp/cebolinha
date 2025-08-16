@@ -1,32 +1,36 @@
 services:
   api01: &api
-    image: leandronsp/ovelha
+    image: leandronsp/cebolinha-api
     container_name: api01
     hostname: api01
     networks:
       - payment-processor
-      - backend
+      backend:
+        ipv4_address: 172.20.0.3
     depends_on:
       redis:
         condition: service_healthy
-    environment:
-      - API_REDIS_POOL_SIZE=10
-      - API_THREAD_POOL_SIZE=10
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: '50MB'
 
   api02: 
     <<: *api
     container_name: api02
     hostname: api02
+    networks:
+      - payment-processor
+      backend:
+        ipv4_address: 172.20.0.4
 
-  worker: &worker
-    <<: *api
+  worker:
+    image: leandronsp/cebolinha-worker
     container_name: worker
     hostname: worker
+    networks:
+      - payment-processor
+      backend:
+        ipv4_address: 172.20.0.5
+    depends_on:
+      redis:
+        condition: service_healthy
     environment:
       - WORKER_REDIS_POOL_SIZE=10
       - WORKER_THREAD_POOL_SIZE=10
@@ -35,30 +39,19 @@ services:
       - WORKER_DEFAULT_TIMEOUT_MS=300
       - WORKER_FALLBACK_TIMEOUT_MS=100
       - WORKER_MAX_RETRIES=10
-    deploy:
-      resources:
-        limits:
-          cpus: '0.6'
-          memory: '100MB'
 
   redis:
     image: redis:7-alpine
     container_name: redis
     hostname: redis
-    ports:
-      - 6379:6379
     networks:
-      - backend
+      backend:
+        ipv4_address: 172.20.0.2
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 1s
       timeout: 3s
       retries: 30
-    deploy:
-      resources:
-        limits:
-          cpus: '0.2'
-          memory: '100MB'
 
   nginx:
     image: nginx 
@@ -68,17 +61,13 @@ services:
     ports:
       - 9999:9999
     networks:
-      - backend
+      backend:
+        ipv4_address: 172.20.0.6
     depends_on:
       - redis
       - api01
       - api02
       - worker
-    deploy:
-      resources:
-        limits:
-          cpus: '0.2'
-          memory: '50MB'
 
 volumes:
   cargodeps:
@@ -87,3 +76,8 @@ networks:
   payment-processor:
     external: true
   backend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1

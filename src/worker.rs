@@ -80,16 +80,18 @@ fn main() {
 }
 
 fn process_payment(payload: Value, pool: Arc<ConnectionPool>) {
+    // Log what we received from Redis
+    println!("🧅 Received from Redis: {}", payload.to_string());
+    
     let correlation_id = payload["correlationId"].as_str().unwrap_or("");
     let amount = payload["amount"].as_f64().unwrap_or(0.0);
 
-    // Set requestedAt if it's missing (ASM doesn't add timestamps)
-    let requested_at = if let Some(timestamp) = payload["requestedAt"].as_str() {
-        timestamp.to_string()
-    } else {
-        // Generate current timestamp in RFC3339 format
-        chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
-    };
+    // Always generate timestamp in worker (ASM API doesn't include timestamps)
+    let requested_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    
+    // Log parsed parameters
+    println!("🧅 Parsed: correlationId='{}', amount={}, requestedAt='{}'", 
+             correlation_id, amount, requested_at);
 
     // Configuration from environment variables
     let max_attempts: usize = std::env::var("WORKER_MAX_ATTEMPTS")
@@ -134,7 +136,9 @@ fn process_payment(payload: Value, pool: Arc<ConnectionPool>) {
     for attempt in 0..max_attempts {
         if try_processor(
             "default",
-            &payload,
+            correlation_id,
+            amount,
+            &requested_at,
             Duration::from_millis(default_timeout_ms),
         ) {
             // Atomic save - returns true if saved, false if already existed
@@ -168,11 +172,13 @@ fn process_payment(payload: Value, pool: Arc<ConnectionPool>) {
 
     if try_processor(
         "fallback",
-        &payload,
+        correlation_id,
+        amount,
+        &requested_at,
         Duration::from_millis(fallback_timeout_ms),
     ) {
         // Atomic save - returns true if saved, false if already existed
-        match store.save(correlation_id, "fallback", amount, requested_at) {
+        match store.save(correlation_id, "fallback", amount, &requested_at) {
             Ok(true) => {
                 println!("🧅 Payment {} processed by fallback", correlation_id);
             }
@@ -212,15 +218,32 @@ fn process_payment(payload: Value, pool: Arc<ConnectionPool>) {
     }
 }
 
-fn try_processor(processor_name: &str, payload: &Value, timeout: Duration) -> bool {
+fn try_processor(processor_name: &str, correlation_id: &str, amount: f64, requested_at: &str, timeout: Duration) -> bool {
     let endpoint = format!("http://payment-processor-{}:8080/payments", processor_name);
+    
+    let processor_payload = serde_json::json!({
+        "correlationId": correlation_id,
+        "amount": amount,
+        "requestedAt": requested_at
+    });
+
+    // Log what we're sending to the processor
+    println!("🧅 Sending to {}: {}", endpoint, processor_payload.to_string());
 
     match ureq::post(&endpoint)
         .timeout(timeout)
         .set("Content-Type", "application/json")
-        .send_string(&payload.to_string())
+        .send_string(&processor_payload.to_string())
     {
-        Ok(response) => response.status() >= 200 && response.status() < 300,
-        Err(_) => false,
+        Ok(response) => {
+            let success = response.status() >= 200 && response.status() < 300;
+            println!("🧅 Response from {}: {} (success: {})", 
+                     processor_name, response.status(), success);
+            success
+        },
+        Err(e) => {
+            println!("🧅 Error calling {}: {}", processor_name, e);
+            false
+        }
     }
 }

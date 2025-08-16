@@ -7,11 +7,11 @@
 %define LF 0xA
 
 section .data
-; Redis server address (Docker service: redis at 172.21.0.2:6379)
+; Redis server address (Docker service: redis at 172.20.0.2:6379)
 redis_sockaddr:
 	sa_family: dw AF_INET       ; 2 bytes
 	port: dw 0xEB18             ; 2 bytes - 6379 in network byte order
-	ip_addr: dd 0x030015AC      ; 4 bytes - 172.21.0.3 in network byte order
+	ip_addr: dd 0x020014AC      ; 4 bytes - 172.20.0.2 in network byte order
 	sin_zero: dq 0              ; 8 bytes
 
 ; RESP protocol fragments for building dynamic messages

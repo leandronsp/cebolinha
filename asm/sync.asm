@@ -2,7 +2,6 @@
 
 %define FUTEX_WAIT 0
 %define FUTEX_WAKE 1
-%define FUTEX_PRIVATE_FLAG 128
 
 section .data
 mutex: dq 1

@@ -5,16 +5,19 @@ services:
       target: asm-api
     container_name: api01
     hostname: api01
-    ports:
-      - "3000:3000"
     networks:
-      - payment-processor
-      - backend
+      payment-processor:
+      backend:
+        ipv4_address: 172.20.0.3
 
   api02: 
     <<: *api
     container_name: api02
     hostname: api02
+    networks:
+      payment-processor:
+      backend:
+        ipv4_address: 172.20.0.4
 
   worker:
     build:
@@ -24,8 +27,9 @@ services:
     hostname: worker
     command: worker
     networks:
-      - payment-processor
-      - backend
+      payment-processor:
+      backend:
+        ipv4_address: 172.20.0.5
     environment:
       - WORKER_REDIS_POOL_SIZE=10
       - WORKER_THREAD_POOL_SIZE=10
@@ -40,7 +44,8 @@ services:
     container_name: redis
     hostname: redis
     networks:
-      - backend
+      backend:
+        ipv4_address: 172.20.0.2
 
   nginx:
     image: nginx 
@@ -50,17 +55,20 @@ services:
     ports:
       - 9999:9999
     networks:
-      - backend
+      backend:
+        ipv4_address: 172.20.0.6
     depends_on:
       - redis
       - api01
       - api02
       - worker
 
-volumes:
-  cargodeps:
-
 networks:
   payment-processor:
     external: true
   backend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1

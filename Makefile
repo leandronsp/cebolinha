@@ -66,11 +66,25 @@ rinha.official: ## Run official Rinha test with scoring
 	@./scripts/reset.sh
 	@./scripts/run-local-test.sh
 
-docker.build: ## Build the docker image
-	@docker build -t leandronsp/cebolinha --target asm-api --platform linux/amd64 .
+docker.build: ## Build docker images for ASM API and Rust worker
+	@docker build -t leandronsp/cebolinha-api --target asm-api --platform linux/amd64 .
+	@docker build -t leandronsp/cebolinha-worker --target rust-worker --platform linux/amd64 .
 
-docker.push: ## Push the docker image
-	@docker push leandronsp/cebolinha
+docker.push: ## Push docker images to registry
+	@docker push leandronsp/cebolinha-api
+	@docker push leandronsp/cebolinha-worker
+
+docker.build.api: ## Build only the ASM API image
+	@docker build -t leandronsp/cebolinha-api --target asm-api --platform linux/amd64 .
+
+docker.build.worker: ## Build only the Rust worker image
+	@docker build -t leandronsp/cebolinha-worker --target rust-worker --platform linux/amd64 .
+
+docker.push.api: ## Push only the ASM API image
+	@docker push leandronsp/cebolinha-api
+
+docker.push.worker: ## Push only the Rust worker image
+	@docker push leandronsp/cebolinha-worker
 
 ##@ Assembly Build Commands
 
