@@ -1,10 +1,11 @@
-# Build stage for Rust Worker Only
-FROM --platform=linux/amd64 rust AS rust-build
+# Build stage for Go Worker
+FROM --platform=linux/amd64 golang:1.25-alpine AS go-build
 WORKDIR /app
-COPY Cargo.toml Cargo.lock* ./
-RUN cargo build --release --bin worker || echo "Initial build may fail - OK"
-COPY src src
-RUN cargo build --release --bin worker
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd cmd
+COPY internal internal
+RUN CGO_ENABLED=0 GOOS=linux go build -o worker cmd/worker/main.go
 
 # Build stage for Assembly
 FROM --platform=linux/amd64 ubuntu:22.04 AS asm-build
@@ -25,8 +26,9 @@ COPY --from=asm-build /app/bin/server /app/bin/server
 EXPOSE 3000
 CMD ["/app/bin/server"]
 
-# Rust Worker target  
-FROM --platform=linux/amd64 debian:stable-slim AS rust-worker
+# Go Worker target  
+FROM --platform=linux/amd64 alpine:latest AS go-worker
+RUN apk --no-cache add ca-certificates
 WORKDIR /app
-COPY --from=rust-build /app/target/release/worker /usr/bin/worker
+COPY --from=go-build /app/worker /usr/bin/worker
 CMD ["worker"]

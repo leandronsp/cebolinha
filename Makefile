@@ -66,9 +66,9 @@ rinha.official: ## Run official Rinha test with scoring
 	@./scripts/reset.sh
 	@./scripts/run-local-test.sh
 
-docker.build: ## Build docker images for ASM API and Rust worker
+docker.build: ## Build docker images for ASM API and Go worker
 	@docker build -t leandronsp/cebolinha-api --target asm-api --platform linux/amd64 .
-	@docker build -t leandronsp/cebolinha-worker --target rust-worker --platform linux/amd64 .
+	@docker build -t leandronsp/cebolinha-worker --target go-worker --platform linux/amd64 .
 
 docker.push: ## Push docker images to registry
 	@docker push leandronsp/cebolinha-api
@@ -77,14 +77,34 @@ docker.push: ## Push docker images to registry
 docker.build.api: ## Build only the ASM API image
 	@docker build -t leandronsp/cebolinha-api --target asm-api --platform linux/amd64 .
 
-docker.build.worker: ## Build only the Rust worker image
-	@docker build -t leandronsp/cebolinha-worker --target rust-worker --platform linux/amd64 .
+docker.build.worker: ## Build only the Go worker image
+	@docker build -t leandronsp/cebolinha-worker --target go-worker --platform linux/amd64 .
 
 docker.push.api: ## Push only the ASM API image
 	@docker push leandronsp/cebolinha-api
 
-docker.push.worker: ## Push only the Rust worker image
+docker.push.worker: ## Push only the Go worker image
 	@docker push leandronsp/cebolinha-worker
+
+##@ Go Build Commands
+
+go.build: ## Build Go worker binary
+	@go build -o worker cmd/worker/main.go
+
+go.run: go.build ## Build and run Go worker locally
+	@./worker
+
+go.clean: ## Clean Go build artifacts
+	@rm -f worker
+
+go.test: ## Run Go tests
+	@go test ./...
+
+go.fmt: ## Format Go code
+	@go fmt ./...
+
+go.mod.tidy: ## Tidy Go module dependencies
+	@go mod tidy
 
 ##@ Assembly Build Commands
 
