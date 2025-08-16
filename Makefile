@@ -86,51 +86,51 @@ docker.push.api: ## Push only the ASM API image
 docker.push.worker: ## Push only the Go worker image
 	@docker push leandronsp/cebolinha-worker
 
-##@ Go Build Commands
+##@ Go Worker Commands
 
 go.build: ## Build Go worker binary
-	@go build -o worker cmd/worker/main.go
+	@go build -o worker/worker ./worker
 
 go.run: go.build ## Build and run Go worker locally
-	@./worker
+	@./worker/worker
 
 go.clean: ## Clean Go build artifacts
-	@rm -f worker
+	@rm -f worker/worker
 
 go.test: ## Run Go tests
-	@go test ./...
+	@go test ./worker
 
 go.fmt: ## Format Go code
-	@go fmt ./...
+	@go fmt ./worker
 
 go.mod.tidy: ## Tidy Go module dependencies
-	@go mod tidy
+	@go mod tidy -C worker
 
 ##@ Assembly Build Commands
 
 # Assembly source and object files
-ASM_SOURCES = $(wildcard asm/*.asm)
-ASM_OBJECTS = $(ASM_SOURCES:asm/%.asm=build/%.o)
+ASM_SOURCES = $(wildcard api/*.asm)
+ASM_OBJECTS = $(ASM_SOURCES:api/%.asm=api/build/%.o)
 
 asm.clean: ## Clean assembly build artifacts
-	@rm -rf build bin
+	@rm -rf api/build api/bin
 
 # Pattern rule for building assembly objects
-build/%.o: asm/%.asm | build
+api/build/%.o: api/%.asm | api/build
 	@nasm -g -F dwarf -f elf64 -o $@ $<
 
 # Build the server binary from all object files
-bin/server: $(ASM_OBJECTS) | bin
+api/bin/server: $(ASM_OBJECTS) | api/bin
 	@ld -g -o $@ $^
 
 # Create build directories
-build bin:
+api/build api/bin:
 	@mkdir -p $@
 
-asm.build: bin/server ## Build assembly server
+asm.build: api/bin/server ## Build assembly server
 
 asm.run: asm.build ## Build and run assembly server
-	@./bin/server
+	@./api/bin/server
 
 asm.debug: asm.build ## Build and debug assembly server with GDB
-	@gdb -q -x debug_http.gdb bin/server
+	@gdb -q -x debug_http.gdb api/bin/server

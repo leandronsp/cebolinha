@@ -1,4 +1,4 @@
-package processor
+package main
 
 import (
 	"bytes"
@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/leandronsp/cebolinha/internal/config"
-	"github.com/leandronsp/cebolinha/internal/store"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -27,7 +25,7 @@ type ProcessorPayload struct {
 	RequestedAt   string  `json:"requestedAt"`
 }
 
-func Process(ctx context.Context, job PaymentJob, store *store.Store, redisClient *redis.Client, cfg *config.Config) {
+func Process(ctx context.Context, job PaymentJob, store *Store, redisClient *redis.Client, cfg *Config) {
 	correlationID := job.CorrelationID
 	amount := job.Amount
 	requestedAt := time.Now().UTC().Format(time.RFC3339)

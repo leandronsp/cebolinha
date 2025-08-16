@@ -1,4 +1,4 @@
-%include "asm/include/syscalls.inc"
+%include "include/syscalls.inc"
 
 %define AF_INET 2
 %define SOCK_STREAM 1

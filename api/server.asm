@@ -13,7 +13,7 @@ extern print_request_info
 extern route_request
 extern send_payments_response
 
-%include "asm/include/syscalls.inc"
+%include "include/syscalls.inc"
 
 section .text
 _start:

@@ -1,4 +1,4 @@
-module github.com/leandronsp/cebolinha
+module worker
 
 go 1.25.0
 

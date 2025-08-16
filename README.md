@@ -4,8 +4,8 @@ A minimalist HTTP server in pure x86-64 Assembly + Go workers for the [Rinha de 
 
 ## Architecture
 
-- **Assembly HTTP API**: Single-threaded server written in pure x86-64 assembly (no libc)
-- **Go Workers**: Asynchronous payment processing with retry logic and fallback
+- **`api/`**: Single-threaded HTTP server written in pure x86-64 assembly (no libc)
+- **`worker/`**: Go-based payment processing workers with retry logic and fallback
 - **Redis**: Message queue and data storage
 - **NGINX**: Load balancer
 
@@ -76,8 +76,9 @@ make asm.clean             # Clean build artifacts
 ## Go Development
 
 ```bash
-make go.build              # Build Go worker
-make go.run                # Run Go worker locally
-make go.test               # Run tests
-make go.fmt                # Format code
+cd worker                  # Enter worker directory
+go build                   # Build Go worker
+go run .                   # Run Go worker locally
+go test ./...              # Run tests
+go fmt ./...               # Format code
 ```

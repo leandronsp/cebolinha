@@ -10,16 +10,24 @@ This is "Cebolinha" - a pure x86-64 assembly HTTP server that demonstrates low-l
 
 The server has been modularized from a single assembly file into a clean, maintainable structure:
 
-### Modular Structure
+### Project Structure
 ```
-asm/
+api/
 ├── server.asm       # Main server coordination and control flow (single-threaded)
 ├── network.asm      # Socket operations (create, bind, listen, accept)
 ├── http.asm         # HTTP request/response parsing and handling
 ├── handler.asm      # Route matching and request handling
 ├── redis.asm        # Redis client with RESP protocol implementation
-└── include/
-    └── syscalls.inc # Linux system call numbers
+├── include/
+│   └── syscalls.inc # Linux system call numbers
+├── build/           # Generated object files
+└── bin/             # Generated binaries
+
+worker/
+├── main.go          # Worker entry point and coordination
+├── config.go        # Configuration management
+├── processor.go     # Payment processing logic
+└── store.go         # Redis data operations
 ```
 
 ### Key Features
@@ -53,14 +61,14 @@ make debug      # Build and run with GDB debugger
 ### Manual Build on Linux (requires NASM and binutils)
 ```bash
 # Build all modules
-nasm -f elf64 -o build/server.o asm/server.asm
-nasm -f elf64 -o build/network.o asm/network.asm
-nasm -f elf64 -o build/http.o asm/http.asm
-nasm -f elf64 -o build/handler.o asm/handler.asm
-nasm -f elf64 -o build/redis.o asm/redis.asm
+nasm -f elf64 -o api/build/server.o api/server.asm
+nasm -f elf64 -o api/build/network.o api/network.asm
+nasm -f elf64 -o api/build/http.o api/http.asm
+nasm -f elf64 -o api/build/handler.o api/handler.asm
+nasm -f elf64 -o api/build/redis.o api/redis.asm
 # Link all object files
-ld -o bin/server build/*.o
-./bin/server
+ld -o api/bin/server api/build/*.o
+./api/bin/server
 ```
 
 ### macOS Development (using Lima)
@@ -71,8 +79,8 @@ Since the server targets Linux x86-64, macOS development requires a Linux VM:
 limactl start --name ubuntu --arch x86_64 --rosetta --mount-writable --cpus 4 --disk 20
 limactl shell ubuntu
 sudo apt install nasm binutils gdb
-nasm -f elf64 -o asm/server.o asm/server.asm
-ld -o server asm/server.o
+nasm -f elf64 -o api/server.o api/server.asm
+ld -o server api/server.o
 ./server
 ```
 
@@ -159,7 +167,7 @@ The server publishes JSON payloads directly to Redis using the RESP protocol:
 ### GDB Debugging Assembly
 ```bash
 make debug                                   # Start with GDB
-(gdb) break asm/redis.asm:158               # Set breakpoint in Redis function
+(gdb) break api/redis.asm:158               # Set breakpoint in Redis function
 (gdb) info registers                        # View all registers
 (gdb) x/s $rsi                              # View string at register
 (gdb) x/14c $rsi                            # View 14 characters
