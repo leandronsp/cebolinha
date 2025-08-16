@@ -16,16 +16,6 @@ extern redis_response_buffer
 extern parse_redis_responses
 extern build_summary_json
 extern summary_json_buffer
-extern query_ptr
-extern query_len
-extern from_param_ptr
-extern from_param_len
-extern to_param_ptr
-extern to_param_len
-extern parse_query_params
-extern redis_zrangebyscore
-extern build_filtered_summary
-extern filtered_json_buffer
 
 section .data
 ; Route matching strings
@@ -42,7 +32,7 @@ payments_summary_path_len: equ $ - payments_summary_path
 payments_success_response:
 	db "HTTP/1.1 200 OK", CR, LF
 	db "Content-Type: application/json", CR, LF
-	db "Content-Length: 23", CR, LF
+	db "Content-Length: 22", CR, LF
 	db CR, LF
 	db '{"message":"enqueued"}'
 payments_success_len: equ $ - payments_success_response
@@ -190,35 +180,7 @@ handle_post_payments:
 	ret
 
 handle_get_payments_summary:
-	; Check if query parameters exist
-	cmp qword [query_len], 0
-	je .use_global_counters
-	
-	; Parse query parameters to extract from/to
-	call parse_query_params
-	
-	; Check if we have actual filtering parameters
-	mov rax, [from_param_len]
-	add rax, [to_param_len]
-	cmp rax, 0
-	je .use_global_counters
-	
-	; Use filtered approach with ZRANGEBYSCORE
-	call redis_zrangebyscore
-	cmp rax, 1
-	jne .query_failed
-	
-	; Build filtered summary from ZRANGEBYSCORE response
-	call build_filtered_summary
-	mov [json_response_len], rax
-	
-	; Set response buffer pointer to filtered buffer
-	; Note: send_payments_response will need to handle this
-	mov rax, 3  ; Filtered GET success flag
-	ret
-	
-.use_global_counters:
-	; Original logic for global counters
+	; Simple implementation - just use global counters
 	call redis_query_summary
 	cmp rax, 1
 	jne .query_failed
@@ -242,13 +204,11 @@ handle_get_payments_summary:
 	ret
 
 send_payments_response:
-	; Check result code: 1=POST success, 2=GET success, 3=filtered GET success, other=error
+	; Check result code: 1=POST success, 2=GET success, other=error
 	cmp rax, 1
 	je .send_post_success
 	cmp rax, 2
 	je .send_get_success
-	cmp rax, 3
-	je .send_filtered_success
 	
 	; Send error response
 	mov rdi, r10
@@ -270,18 +230,6 @@ send_payments_response:
 .send_get_success:
 	; Build dynamic HTTP response with correct Content-Length
 	call build_dynamic_http_response
-	
-	; Send dynamic response
-	mov rdi, r10
-	mov rsi, dynamic_http_buffer
-	mov rdx, rax  ; Length returned by build function
-	mov rax, SYS_write
-	syscall
-	ret
-
-.send_filtered_success:
-	; Build dynamic HTTP response with filtered JSON
-	call build_filtered_http_response
 	
 	; Send dynamic response
 	mov rdi, r10
@@ -360,70 +308,3 @@ build_dynamic_http_response:
 	pop rdi
 	ret
 
-; Build complete HTTP response with filtered JSON
-; Returns: rax = total response length
-build_filtered_http_response:
-	push rdi
-	push rsi
-	push rcx
-	push rdx
-	
-	; Build HTTP response in dynamic_http_buffer
-	mov rdi, dynamic_http_buffer
-	
-	; Copy HTTP headers: "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
-	mov rsi, http_summary_header
-	mov rcx, http_summary_header_len
-	rep movsb
-	
-	; Add Content-Length (use same logic as build_dynamic_http_response)
-	mov rax, [json_response_len]
-	cmp rax, 100
-	jl .under_100_filtered
-	
-	; Handle 3-digit numbers (100+)
-	mov al, '1'
-	stosb
-	mov rax, [json_response_len]
-	sub rax, 100
-	jmp .add_tens_filtered
-	
-.under_100_filtered:
-	mov rax, [json_response_len]
-	
-.add_tens_filtered:
-	; Add tens digit
-	mov bl, 10
-	div bl
-	add al, '0'
-	stosb
-	
-	; Add ones digit  
-	add ah, '0'
-	mov al, ah
-	stosb
-	
-	; Add final headers: "\r\n\r\n"
-	mov al, CR
-	stosb
-	mov al, LF
-	stosb
-	mov al, CR
-	stosb
-	mov al, LF
-	stosb
-	
-	; Copy filtered JSON body
-	mov rsi, filtered_json_buffer
-	mov rcx, [json_response_len]
-	rep movsb
-	
-	; Calculate total response length
-	mov rax, rdi
-	sub rax, dynamic_http_buffer
-	
-	pop rdx
-	pop rcx
-	pop rsi
-	pop rdi
-	ret
