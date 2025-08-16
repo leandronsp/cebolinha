@@ -1,5 +1,9 @@
 %include "include/syscalls.inc"
 
+; External functions
+extern get_current_timestamp
+extern timestamp_buffer
+
 %define AF_INET 2
 %define SOCK_STREAM 1
 %define SOCK_PROTOCOL 0
@@ -205,12 +209,23 @@ redis_publish_body:
 	mov rcx, 14
 	rep movsb
 	
-	; Add "$<body_len>\r\n"
+	; Generate current timestamp
+	call get_current_timestamp
+	; rax now contains timestamp length (20)
+	push rax                        ; save timestamp length
+	
+	; Calculate combined message length: body_len + 1 (semicolon) + timestamp_len
+	mov rax, [rsp + 8]              ; get body length from stack
+	add rax, 1                      ; add semicolon
+	add rax, [rsp]                  ; add timestamp length
+	push rax                        ; save combined length
+	
+	; Add "$<combined_len>\r\n"
 	mov al, '$'
 	stosb
 	
-	; Convert body length to ASCII  
-	mov rax, [rsp]                  ; get body length from stack
+	; Convert combined length to ASCII  
+	mov rax, [rsp]                  ; get combined length from stack
 	call number_to_ascii
 	push rax                        ; save length string size
 	
@@ -226,12 +241,23 @@ redis_publish_body:
 	stosb
 	
 	; Copy body content  
-	add rsp, 8                      ; remove string_len from stack first
+	add rsp, 8                      ; remove string_len from stack
+	add rsp, 8                      ; remove combined_len from stack
+	add rsp, 8                      ; remove timestamp_len from stack
 	pop rdx                         ; body length
 	pop rsi                         ; body pointer
 	push rsi
 	push rdx
 	mov rcx, rdx
+	rep movsb
+	
+	; Add semicolon separator
+	mov al, ';'
+	stosb
+	
+	; Copy timestamp
+	mov rsi, timestamp_buffer
+	mov rcx, 20                     ; RFC3339 timestamp length
 	rep movsb
 	
 	; Add final "\r\n"

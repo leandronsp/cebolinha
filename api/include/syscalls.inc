@@ -16,5 +16,8 @@
 ; Process control
 %define SYS_exit 60
 
+; Time system calls
+%define SYS_clock_gettime 228
+
 ; Network system calls (extended)
 %define SYS_accept4 288

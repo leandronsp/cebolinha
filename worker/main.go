@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -36,8 +37,18 @@ func subscriber(ctx context.Context, jobs chan<- PaymentJob, redisClient *redis.
 	defer pubsub.Close()
 
 	for msg := range pubsub.Channel() {
+		// Parse body;timestamp format
+		parts := strings.SplitN(msg.Payload, ";", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		
+		bodyJSON := parts[0]
+		timestamp := parts[1]
+		
 		var job PaymentJob
-		if json.Unmarshal([]byte(msg.Payload), &job) == nil {
+		if json.Unmarshal([]byte(bodyJSON), &job) == nil {
+			job.RequestedAt = timestamp
 			jobs <- job
 		}
 	}

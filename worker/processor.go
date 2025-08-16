@@ -15,6 +15,7 @@ import (
 type PaymentJob struct {
 	CorrelationID string  `json:"correlationId"`
 	Amount        float64 `json:"amount"`
+	RequestedAt   string  `json:"requestedAt,omitempty"` // Timestamp from API
 	RetryCount    int     `json:"_retry_count,omitempty"`
 }
 
@@ -28,7 +29,7 @@ type ProcessorPayload struct {
 func Process(ctx context.Context, job PaymentJob, store *Store, redisClient *redis.Client, cfg *Config) {
 	correlationID := job.CorrelationID
 	amount := job.Amount
-	requestedAt := time.Now().UTC().Format(time.RFC3339)
+	requestedAt := job.RequestedAt
 
 	// Try default processor
 	if tryProcessor(ctx, "default", correlationID, amount, requestedAt, time.Duration(cfg.DefaultTimeoutMs)*time.Millisecond) {
