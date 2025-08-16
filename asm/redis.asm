@@ -32,15 +32,47 @@ get_total_amount_default_len: equ $ - get_total_amount_default
 get_total_amount_fallback: db "*2", CR, LF, "$3", CR, LF, "GET", CR, LF, "$20", CR, LF, "totalAmount:fallback", CR, LF
 get_total_amount_fallback_len: equ $ - get_total_amount_fallback
 
+; JSON building fragments
+json_start_default: db '{"default":{"totalRequests":'
+json_start_default_len: equ $ - json_start_default
+
+json_mid_amount: db ',"totalAmount":'
+json_mid_amount_len: equ $ - json_mid_amount
+
+json_mid_fallback: db '},"fallback":{"totalRequests":'
+json_mid_fallback_len: equ $ - json_mid_fallback
+
+json_end: db '}}'
+json_end_len: equ $ - json_end
+
+default_amount: db '0.0'
+default_amount_len: equ $ - default_amount
+
 section .bss
 redis_sockfd: resb 8            ; Redis socket file descriptor
 dynamic_msg_buffer: resb 2048   ; Buffer for building dynamic RESP messages
 length_str_buffer: resb 16      ; Buffer for converting length to string
 redis_response_buffer: resb 4096 ; Buffer for Redis responses
+summary_json_buffer: resb 512   ; Buffer for dynamic JSON response
+; Separate response buffers for each query
+resp_buffer_1: resb 1024        ; Response buffer for totalRequests:default
+resp_buffer_2: resb 1024        ; Response buffer for totalRequests:fallback
+resp_buffer_3: resb 1024        ; Response buffer for totalAmount:default
+resp_buffer_4: resb 1024        ; Response buffer for totalAmount:fallback
 total_requests_default: resb 8   ; Storage for default processor request count
 total_requests_fallback: resb 8  ; Storage for fallback processor request count
 total_amount_default: resb 8     ; Storage for default processor amount
 total_amount_fallback: resb 8    ; Storage for fallback processor amount
+; Parsed values from Redis
+req_default_val: resb 8         ; Parsed totalRequests:default
+req_fallback_val: resb 8        ; Parsed totalRequests:fallback  
+amt_default_val: resb 8         ; Parsed totalAmount:default (unused - use string version)
+amt_fallback_val: resb 8        ; Parsed totalAmount:fallback (unused - use string version)
+; String buffers for amount values
+amt_default_str: resb 16        ; String representation of totalAmount:default  
+amt_default_len: resb 8         ; Length of amt_default_str
+amt_fallback_str: resb 16       ; String representation of totalAmount:fallback
+amt_fallback_len: resb 8        ; Length of amt_fallback_str
 
 section .text
 global redis_connect
@@ -48,6 +80,9 @@ global redis_publish_body
 global redis_disconnect
 global redis_query_summary
 global redis_response_buffer
+global parse_redis_responses
+global build_summary_json
+global summary_json_buffer
 
 redis_connect:
 	; Create client socket
@@ -231,7 +266,7 @@ redis_publish_body:
 	ret
 
 ; Redis query summary function - queries all 4 counters
-; Stores results in global variables for debugging
+; Stores results in separate buffers for parsing
 ; Returns: rax = 1 for success, 0 for failure
 redis_query_summary:
 	push rdi
@@ -250,14 +285,12 @@ redis_query_summary:
 	mov rax, SYS_write
 	syscall
 	
-	; Read response
+	; Read response into buffer 1
 	mov rdi, [redis_sockfd]
-	mov rsi, redis_response_buffer
-	mov rdx, 4096
+	mov rsi, resp_buffer_1
+	mov rdx, 1024
 	mov rax, SYS_read
 	syscall
-	
-	; Store first response length in total_requests_default (for debugging)
 	mov [total_requests_default], rax
 	
 	; Query 2: GET totalRequests:fallback
@@ -267,15 +300,43 @@ redis_query_summary:
 	mov rax, SYS_write
 	syscall
 	
-	; Read response
+	; Read response into buffer 2
 	mov rdi, [redis_sockfd]
-	mov rsi, redis_response_buffer
-	mov rdx, 4096
+	mov rsi, resp_buffer_2
+	mov rdx, 1024
 	mov rax, SYS_read
 	syscall
-	
-	; Store second response length in total_requests_fallback (for debugging)
 	mov [total_requests_fallback], rax
+	
+	; Query 3: GET totalAmount:default
+	mov rdi, [redis_sockfd]
+	mov rsi, get_total_amount_default
+	mov rdx, get_total_amount_default_len
+	mov rax, SYS_write
+	syscall
+	
+	; Read response into buffer 3
+	mov rdi, [redis_sockfd]
+	mov rsi, resp_buffer_3
+	mov rdx, 1024
+	mov rax, SYS_read
+	syscall
+	mov [total_amount_default], rax
+	
+	; Query 4: GET totalAmount:fallback
+	mov rdi, [redis_sockfd]
+	mov rsi, get_total_amount_fallback
+	mov rdx, get_total_amount_fallback_len
+	mov rax, SYS_write
+	syscall
+	
+	; Read response into buffer 4
+	mov rdi, [redis_sockfd]
+	mov rsi, resp_buffer_4
+	mov rdx, 1024
+	mov rax, SYS_read
+	syscall
+	mov [total_amount_fallback], rax
 	
 	; Disconnect
 	call redis_disconnect
@@ -289,5 +350,335 @@ redis_query_summary:
 	pop rdx
 	pop rsi
 	pop rdi
+	ret
+
+; Parse Redis RESP responses and extract values
+; Analyzes all 4 separate response buffers and extracts values
+parse_redis_responses:
+	push rdi
+	push rsi
+	push rcx
+	push rdx
+	
+	; Parse first response: totalRequests:default from resp_buffer_1 (integer)
+	mov rsi, resp_buffer_1
+	call parse_single_resp_value
+	mov [req_default_val], rax
+	
+	; Parse second response: totalRequests:fallback from resp_buffer_2 (integer)
+	mov rsi, resp_buffer_2
+	call parse_single_resp_value
+	mov [req_fallback_val], rax
+	
+	; Parse third response: totalAmount:default from resp_buffer_3 (string)
+	mov rsi, resp_buffer_3
+	mov rdi, amt_default_str
+	mov rdx, 16  ; Max buffer size
+	call parse_resp_string
+	mov [amt_default_len], rax
+	
+	; Parse fourth response: totalAmount:fallback from resp_buffer_4 (string)
+	mov rsi, resp_buffer_4
+	mov rdi, amt_fallback_str
+	mov rdx, 16  ; Max buffer size
+	call parse_resp_string
+	mov [amt_fallback_len], rax
+	
+	pop rdx
+	pop rcx
+	pop rsi
+	pop rdi
+	ret
+
+; Parse single RESP bulk string response
+; Input: rsi = pointer to RESP response
+; Output: rax = parsed integer value (0 if null/error)
+parse_single_resp_value:
+	push rdi
+	push rcx
+	push rdx
+	push rbx
+	
+	; Check first character
+	mov al, [rsi]
+	cmp al, '$'
+	jne .parse_error
+	
+	inc rsi  ; Skip '$'
+	
+	; Check if null response ($-1)
+	mov al, [rsi]
+	cmp al, '-'
+	je .null_response
+	
+	; Parse length field until \r
+	xor rcx, rcx  ; rcx = parsed length
+.parse_length_loop:
+	mov al, [rsi]
+	cmp al, CR
+	je .length_done
+	cmp al, '0'
+	jb .parse_error
+	cmp al, '9'
+	ja .parse_error
+	
+	; rcx = rcx * 10 + (al - '0')
+	imul rcx, 10
+	sub al, '0'
+	movzx rdx, al
+	add rcx, rdx
+	inc rsi
+	jmp .parse_length_loop
+	
+.length_done:
+	; Skip \r\n
+	inc rsi  ; Skip \r
+	inc rsi  ; Skip \n
+	
+	; Parse the actual number (rcx bytes)
+	xor rax, rax  ; Result accumulator
+	xor rbx, rbx  ; Current position
+	
+.parse_number_loop:
+	cmp rbx, rcx
+	jge .parse_done
+	
+	mov dl, [rsi + rbx]
+	cmp dl, '0'
+	jb .check_decimal  ; Check for decimal point
+	cmp dl, '9'
+	ja .check_decimal  ; Check for decimal point
+	
+	; rax = rax * 10 + (dl - '0')
+	imul rax, 10
+	sub dl, '0'
+	movzx rdx, dl
+	add rax, rdx
+	inc rbx
+	jmp .parse_number_loop
+
+.check_decimal:
+	; Check if it's a decimal point - if so, stop parsing (treat as integer part)
+	cmp dl, '.'
+	je .parse_done
+	; Otherwise, stop parsing at any non-digit
+	jmp .parse_done
+	
+.null_response:
+	xor rax, rax  ; Return 0 for null
+	jmp .parse_done
+	
+.parse_error:
+	xor rax, rax  ; Return 0 for error
+	
+.parse_done:
+	pop rbx
+	pop rdx
+	pop rcx
+	pop rdi
+	ret
+
+; Build JSON summary with parsed values
+; Returns: rax = length of JSON string
+build_summary_json:
+	push rdi
+	push rsi
+	push rcx
+	
+	; Build JSON string in summary_json_buffer
+	mov rdi, summary_json_buffer
+	
+	; Start JSON: {"default":{"totalRequests":
+	mov rsi, json_start_default
+	mov rcx, json_start_default_len
+	rep movsb
+	
+	; Add default requests value from parsed data
+	mov rax, [req_default_val]
+	call convert_number_to_string
+	
+	; Continue: ,"totalAmount":
+	mov rsi, json_mid_amount
+	mov rcx, json_mid_amount_len
+	rep movsb
+	
+	; Add default amount value from parsed string
+	mov rsi, amt_default_str
+	mov rcx, [amt_default_len]
+	rep movsb
+	
+	; Continue: },"fallback":{"totalRequests":
+	mov rsi, json_mid_fallback
+	mov rcx, json_mid_fallback_len
+	rep movsb
+	
+	; Add fallback requests value from parsed data
+	mov rax, [req_fallback_val]
+	call convert_number_to_string
+	
+	; Continue: ,"totalAmount":
+	mov rsi, json_mid_amount
+	mov rcx, json_mid_amount_len
+	rep movsb
+	
+	; Add fallback amount value from parsed string
+	mov rsi, amt_fallback_str
+	mov rcx, [amt_fallback_len]
+	rep movsb
+	
+	; End JSON: }}
+	mov rsi, json_end
+	mov rcx, json_end_len
+	rep movsb
+	
+	; Calculate total length
+	mov rax, rdi
+	sub rax, summary_json_buffer
+	
+	pop rcx
+	pop rsi
+	pop rdi
+	ret
+
+; Parse RESP bulk string and extract string value
+; Input: rsi = pointer to RESP response, rdi = destination buffer, rdx = max buffer size
+; Output: rax = length of extracted string (0 if null/error)
+parse_resp_string:
+	push rdi
+	push rsi
+	push rcx
+	push rbx
+	
+	; Save destination buffer
+	mov rbx, rdi
+	
+	; Check first character
+	mov al, [rsi]
+	cmp al, '$'
+	jne .string_parse_error
+	
+	inc rsi  ; Skip '$'
+	
+	; Check if null response ($-1)
+	mov al, [rsi]
+	cmp al, '-'
+	je .string_null_response
+	
+	; Parse length field until \r
+	xor rcx, rcx  ; rcx = parsed length
+.string_parse_length_loop:
+	mov al, [rsi]
+	cmp al, CR
+	je .string_length_done
+	cmp al, '0'
+	jb .string_parse_error
+	cmp al, '9'
+	ja .string_parse_error
+	
+	; rcx = rcx * 10 + (al - '0')
+	imul rcx, 10
+	sub al, '0'
+	movzx r8, al
+	add rcx, r8
+	inc rsi
+	jmp .string_parse_length_loop
+	
+.string_length_done:
+	; Skip \r\n
+	inc rsi  ; Skip \r
+	inc rsi  ; Skip \n
+	
+	; Check if length exceeds buffer size
+	cmp rcx, rdx
+	jg .string_parse_error
+	
+	; Copy string data to destination buffer
+	push rcx  ; Save length for return
+	rep movsb  ; Copy rcx bytes from rsi to rdi
+	
+	; Null-terminate the string
+	mov byte [rdi], 0
+	
+	pop rax  ; Return length
+	jmp .string_parse_done
+	
+.string_null_response:
+	xor rax, rax  ; Return 0 for null
+	jmp .string_parse_done
+	
+.string_parse_error:
+	xor rax, rax  ; Return 0 for error
+	
+.string_parse_done:
+	pop rbx
+	pop rcx
+	pop rsi
+	pop rdi
+	ret
+
+; Convert number to ASCII string and store in RDI
+; Input: rax = number to convert, rdi = destination buffer pointer
+; Output: rdi = updated to point after the number string
+; Modifies: rax, rbx, rcx, rdx
+convert_number_to_string:
+	push rbx
+	push rcx
+	push rdx
+	push rsi
+	
+	; Handle zero case
+	cmp rax, 0
+	jne .not_zero
+	mov byte [rdi], '0'
+	inc rdi
+	jmp .convert_done
+	
+.not_zero:
+	; Convert number to string (backwards)
+	mov rsi, rdi  ; Save start position
+	mov rbx, rax  ; Number to convert
+	xor rcx, rcx  ; Digit count
+	
+.digit_loop:
+	xor rdx, rdx
+	mov rax, rbx
+	mov rbx, 10
+	div rbx  ; rax = quotient, rdx = remainder
+	add dl, '0'  ; Convert remainder to ASCII
+	mov [rdi], dl
+	inc rdi
+	inc rcx
+	mov rbx, rax  ; Continue with quotient
+	cmp rbx, 0
+	jne .digit_loop
+	
+	; Reverse the string in place
+	dec rdi  ; Point to last digit
+	mov rbx, rsi  ; Point to first digit
+	
+.reverse_loop:
+	cmp rbx, rdi
+	jge .reverse_done
+	
+	; Swap bytes at rbx and rdi
+	mov al, [rbx]
+	mov dl, [rdi]
+	mov [rbx], dl
+	mov [rdi], al
+	
+	inc rbx
+	dec rdi
+	jmp .reverse_loop
+	
+.reverse_done:
+	; Set rdi to point after the string
+	add rsi, rcx
+	mov rdi, rsi
+	
+.convert_done:
+	pop rsi
+	pop rdx
+	pop rcx
+	pop rbx
 	ret
 

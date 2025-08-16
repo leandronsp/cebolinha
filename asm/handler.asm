@@ -13,6 +13,9 @@ extern body_len
 extern redis_publish_body
 extern redis_query_summary
 extern redis_response_buffer
+extern parse_redis_responses
+extern build_summary_json
+extern summary_json_buffer
 
 section .data
 ; Route matching strings
@@ -52,12 +55,21 @@ payments_summary_response:
 	db '{"default":{"totalRequests":0,"totalAmount":0.0},"fallback":{"totalRequests":0,"totalAmount":0.0}}'
 payments_summary_len: equ $ - payments_summary_response
 
+; Dynamic HTTP response headers
+http_summary_header: db "HTTP/1.1 200 OK", CR, LF, "Content-Type: application/json", CR, LF, "Content-Length: "
+http_summary_header_len: equ $ - http_summary_header
+
+section .bss
+json_response_len: resb 8       ; Length of dynamic JSON response
+dynamic_http_buffer: resb 1024  ; Buffer for complete HTTP response
+
 section .text
 global route_request
 global handle_post_payments
 global handle_get_payments_summary
 global send_payments_response
 global send_summary_response
+global build_dynamic_http_response
 
 route_request:
 	; Check if POST /payments
@@ -173,6 +185,15 @@ handle_get_payments_summary:
 	cmp rax, 1
 	jne .query_failed
 	
+	; Parse Redis responses
+	call parse_redis_responses
+	
+	; Build dynamic JSON response
+	call build_summary_json
+	
+	; Store JSON length in global variable for response function
+	mov [json_response_len], rax
+	
 	; Redis query succeeded, return GET success code
 	mov rax, 2  ; GET success flag
 	ret
@@ -207,10 +228,82 @@ send_payments_response:
 	ret
 	
 .send_get_success:
-	; Send GET /payments-summary response
+	; Build dynamic HTTP response with correct Content-Length
+	call build_dynamic_http_response
+	
+	; Send dynamic response
 	mov rdi, r10
-	mov rsi, payments_summary_response
-	mov rdx, payments_summary_len
+	mov rsi, dynamic_http_buffer
+	mov rdx, rax  ; Length returned by build function
 	mov rax, SYS_write
 	syscall
+	ret
+
+; Build complete HTTP response with dynamic JSON
+; Returns: rax = total response length
+build_dynamic_http_response:
+	push rdi
+	push rsi
+	push rcx
+	push rdx
+	
+	; Build HTTP response in dynamic_http_buffer
+	mov rdi, dynamic_http_buffer
+	
+	; Copy HTTP headers: "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+	mov rsi, http_summary_header
+	mov rcx, http_summary_header_len
+	rep movsb
+	
+	; For now, use fixed Content-Length based on our JSON (simplified)
+	; TODO: Convert [json_response_len] to string
+	mov rax, [json_response_len]
+	cmp rax, 100
+	jl .under_100
+	
+	; Handle 3-digit numbers (100+)
+	mov al, '1'
+	stosb
+	mov rax, [json_response_len]
+	sub rax, 100
+	jmp .add_tens
+	
+.under_100:
+	mov rax, [json_response_len]
+	
+.add_tens:
+	; Add tens digit
+	mov bl, 10
+	div bl
+	add al, '0'
+	stosb
+	
+	; Add ones digit  
+	add ah, '0'
+	mov al, ah
+	stosb
+	
+	; Add final headers: "\r\n\r\n"
+	mov al, CR
+	stosb
+	mov al, LF
+	stosb
+	mov al, CR
+	stosb
+	mov al, LF
+	stosb
+	
+	; Copy JSON body
+	mov rsi, summary_json_buffer
+	mov rcx, [json_response_len]
+	rep movsb
+	
+	; Calculate total response length
+	mov rax, rdi
+	sub rax, dynamic_http_buffer
+	
+	pop rdx
+	pop rcx
+	pop rsi
+	pop rdi
 	ret
