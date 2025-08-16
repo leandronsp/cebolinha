@@ -1,18 +1,19 @@
 # 🧅 Cebolinha
 
-A minimalist HTTP server in pure x86-64 assembly + Go workers for the [Rinha de Backend 2025](https://github.com/zanfranceschi/rinha-de-backend-2025).
+A minimalist HTTP server in pure x86-64 Assembly + Go workers for the [Rinha de Backend 2025](https://github.com/zanfranceschi/rinha-de-backend-2025).
 
 ## Architecture
 
 - **Assembly HTTP API**: Single-threaded server written in pure x86-64 assembly (no libc)
 - **Go Workers**: Asynchronous payment processing with retry logic and fallback
 - **Redis**: Message queue and data storage
-- **NGINX**: Load balancer for multiple API instances
+- **NGINX**: Load balancer
 
 ## Requirements
 
 - Docker
 - Make
+- Força de vontade (optional)
 
 ## Quick Start
 

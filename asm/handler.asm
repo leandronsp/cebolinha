@@ -45,15 +45,6 @@ payments_error_response:
 	db '{"error":"Redis publish failed"}'
 payments_error_len: equ $ - payments_error_response
 
-; Payments summary response (JSON)
-payments_summary_response:
-	db "HTTP/1.1 200 OK", CR, LF
-	db "Content-Type: application/json", CR, LF
-	db "Content-Length: 98", CR, LF
-	db CR, LF
-	db '{"default":{"totalRequests":0,"totalAmount":0.0},"fallback":{"totalRequests":0,"totalAmount":0.0}}'
-payments_summary_len: equ $ - payments_summary_response
-
 ; Dynamic HTTP response headers
 http_summary_header: db "HTTP/1.1 200 OK", CR, LF, "Content-Type: application/json", CR, LF, "Content-Length: "
 http_summary_header_len: equ $ - http_summary_header
@@ -64,11 +55,7 @@ dynamic_http_buffer: resb 1024  ; Buffer for complete HTTP response
 
 section .text
 global route_request
-global handle_post_payments
-global handle_get_payments_summary
 global send_payments_response
-global send_summary_response
-global build_dynamic_http_response
 
 route_request:
 	; Check if POST /payments

@@ -34,14 +34,6 @@ from_param_name: db "from="
 from_param_name_len: equ $ - from_param_name
 to_param_name: db "to="
 to_param_name_len: equ $ - to_param_name
-response:
-	headline: db "HTTP/1.1 200 OK", CR, LF
-	content_type: db "Content-Type: text/html", CR, LF
-	content_length: db "Content-Length: 22", CR, LF
-	crlf: db CR, LF
-	body: db "<h1>Hello, World!</h1>"
-responseLen: equ $ - response
-
 ; 404 Not Found response
 not_found_response:
 	db "HTTP/1.1 404 Not Found", CR, LF
@@ -52,7 +44,6 @@ not_found_response:
 not_found_response_len: equ $ - not_found_response
 
 section .text
-global send_response
 global send_not_found_response
 global close_connection
 global read_request
@@ -72,15 +63,6 @@ global from_param_len
 global to_param_ptr
 global to_param_len
 global parse_query_params
-
-send_response:
-	; fd is in r10
-	mov rdi, r10
-	mov rsi, response
-	mov rdx, responseLen
-	mov rax, SYS_write
-	syscall
-	ret
 
 send_not_found_response:
 	; fd is in r10

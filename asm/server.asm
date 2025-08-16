@@ -4,7 +4,6 @@ extern create_socket
 extern bind_socket
 extern listen_socket
 extern accept_connection
-extern send_response
 extern send_not_found_response
 extern close_connection
 extern read_request
@@ -15,8 +14,6 @@ extern route_request
 extern send_payments_response
 
 %include "asm/include/syscalls.inc"
-
-section .bss
 
 section .text
 _start:
@@ -43,7 +40,6 @@ action:
 	je .default_route
 	
 	; Specific route handled - rax contains Redis result (1=success, 2=error)
-	; Send custom response based on Redis result
 	call send_payments_response
 	jmp .close
 	
