@@ -3,3 +3,4 @@ server
 worker
 target/
 *.rdb
+partial-results.json
