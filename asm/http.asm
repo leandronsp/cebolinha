@@ -13,6 +13,13 @@ content_length_value: resq 1  ; Store the actual content length number
 headers_start_ptr: resq 1     ; Pointer to start of headers (after headline CRLF)
 body_ptr: resq 1              ; Pointer to body start
 body_len: resq 1              ; Length of body (copy of content_length_value)
+; Query parameter parsing
+query_ptr: resq 1             ; Pointer to query string start (after '?')
+query_len: resq 1             ; Length of query string
+from_param_ptr: resq 1        ; Pointer to 'from' parameter value
+from_param_len: resq 1        ; Length of 'from' parameter value
+to_param_ptr: resq 1          ; Pointer to 'to' parameter value
+to_param_len: resq 1          ; Length of 'to' parameter value
 
 section .data
 debug_verb_msg: db "Verb: "
@@ -22,6 +29,11 @@ debug_path_msg_len: equ $ - debug_path_msg
 newline: db 10
 content_length_header: db "Content-Length:"
 content_length_header_len: equ $ - content_length_header
+; Query parameter names
+from_param_name: db "from="
+from_param_name_len: equ $ - from_param_name
+to_param_name: db "to="
+to_param_name_len: equ $ - to_param_name
 response:
 	headline: db "HTTP/1.1 200 OK", CR, LF
 	content_type: db "Content-Type: text/html", CR, LF
@@ -53,6 +65,13 @@ global path_ptr
 global path_len
 global body_ptr
 global body_len
+global query_ptr
+global query_len
+global from_param_ptr
+global from_param_len
+global to_param_ptr
+global to_param_len
+global parse_query_params
 
 send_response:
 	; fd is in r10
@@ -119,21 +138,52 @@ parse_request:
 	inc rsi
 	mov [path_ptr], rsi
 
-	; Find second space or CR (end of path)
+	; Find second space, CR, or '?' (end of path/start of query)
 	xor rcx, rcx
+	mov qword [query_ptr], 0  ; Initialize query_ptr to null
+	mov qword [query_len], 0  ; Initialize query_len to 0
 .find_path_end:
 	mov al, [rsi]
 	cmp al, ' '
 	je .found_path_end
 	cmp al, CR
 	je .found_path_end
+	cmp al, '?'
+	je .found_query_start
 	inc rsi
 	inc rcx
 	jmp .find_path_end
 
-.found_path_end:
-	; Store path length
+.found_query_start:
+	; Store path length (excluding '?')
 	mov [path_len], rcx
+	
+	; Save query start position (skip '?')
+	inc rsi
+	mov [query_ptr], rsi
+	
+	; Find end of query string (space or CR)
+	xor rcx, rcx
+.find_query_end:
+	mov al, [rsi]
+	cmp al, ' '
+	je .found_query_end
+	cmp al, CR
+	je .found_query_end
+	inc rsi
+	inc rcx
+	jmp .find_query_end
+	
+.found_query_end:
+	; Store query length
+	mov [query_len], rcx
+	; rsi is now at space or CR after query - this is correct position
+	jmp .skip_to_headers
+
+.found_path_end:
+	; Store path length (no query string found)
+	mov [path_len], rcx
+	; rsi is now at space or CR after path - this is correct position
 
 	; Skip to end of headline (find LF after CR)
 .skip_to_headers:
@@ -288,4 +338,140 @@ print_request_info:
 	syscall
 
 	pop r10
+	ret
+
+; Parse query parameters from query string
+; Extracts 'from' and 'to' parameters if they exist
+; Input: query_ptr and query_len must be set
+; Output: Sets from_param_ptr/len and to_param_ptr/len
+parse_query_params:
+	push rbx
+	push rcx
+	push rdx
+	push rdi
+	push rsi
+	
+	; Initialize parameter pointers to null
+	mov qword [from_param_ptr], 0
+	mov qword [from_param_len], 0
+	mov qword [to_param_ptr], 0
+	mov qword [to_param_len], 0
+	
+	; Check if we have a query string
+	cmp qword [query_len], 0
+	je .no_query_string
+	
+	; Start parsing from beginning of query string
+	mov rsi, [query_ptr]
+	mov rbx, [query_len]
+	
+.parse_param_loop:
+	; Check if we've reached the end
+	cmp rbx, 0
+	je .done_parsing
+	
+	; Check for 'from=' parameter
+	cmp rbx, from_param_name_len
+	jl .check_to_param
+	
+	mov rdi, rsi
+	mov rcx, from_param_name_len
+	push rsi
+	push rbx
+	mov rsi, from_param_name
+	repe cmpsb
+	pop rbx
+	pop rsi
+	je .found_from_param
+	
+.check_to_param:
+	; Check for 'to=' parameter
+	cmp rbx, to_param_name_len
+	jl .skip_to_next
+	
+	mov rdi, rsi
+	mov rcx, to_param_name_len
+	push rsi
+	push rbx
+	mov rsi, to_param_name
+	repe cmpsb
+	pop rbx
+	pop rsi
+	je .found_to_param
+	
+.skip_to_next:
+	; Skip to next character
+	inc rsi
+	dec rbx
+	jmp .parse_param_loop
+	
+.found_from_param:
+	; Skip 'from=' part
+	add rsi, from_param_name_len
+	sub rbx, from_param_name_len
+	
+	; Save start of value
+	mov [from_param_ptr], rsi
+	
+	; Find end of value (& or end of string)
+	xor rcx, rcx
+.find_from_end:
+	cmp rbx, 0
+	je .found_from_end
+	mov al, [rsi]
+	cmp al, '&'
+	je .found_from_end
+	inc rsi
+	inc rcx
+	dec rbx
+	jmp .find_from_end
+	
+.found_from_end:
+	mov [from_param_len], rcx
+	
+	; Skip '&' if present
+	cmp rbx, 0
+	je .parse_param_loop
+	inc rsi
+	dec rbx
+	jmp .parse_param_loop
+	
+.found_to_param:
+	; Skip 'to=' part
+	add rsi, to_param_name_len
+	sub rbx, to_param_name_len
+	
+	; Save start of value
+	mov [to_param_ptr], rsi
+	
+	; Find end of value (& or end of string)
+	xor rcx, rcx
+.find_to_end:
+	cmp rbx, 0
+	je .found_to_end
+	mov al, [rsi]
+	cmp al, '&'
+	je .found_to_end
+	inc rsi
+	inc rcx
+	dec rbx
+	jmp .find_to_end
+	
+.found_to_end:
+	mov [to_param_len], rcx
+	
+	; Skip '&' if present
+	cmp rbx, 0
+	je .parse_param_loop
+	inc rsi
+	dec rbx
+	jmp .parse_param_loop
+	
+.no_query_string:
+.done_parsing:
+	pop rsi
+	pop rdi
+	pop rdx
+	pop rcx
+	pop rbx
 	ret
