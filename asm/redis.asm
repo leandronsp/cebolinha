@@ -19,15 +19,35 @@ cmd_array: db "*3", CR, LF
 cmd_publish: db "$7", CR, LF, "PUBLISH", CR, LF
 cmd_channel: db "$8", CR, LF, "payments", CR, LF
 
+; GET commands for summary queries
+get_total_requests_default: db "*2", CR, LF, "$3", CR, LF, "GET", CR, LF, "$21", CR, LF, "totalRequests:default", CR, LF
+get_total_requests_default_len: equ $ - get_total_requests_default
+
+get_total_requests_fallback: db "*2", CR, LF, "$3", CR, LF, "GET", CR, LF, "$22", CR, LF, "totalRequests:fallback", CR, LF
+get_total_requests_fallback_len: equ $ - get_total_requests_fallback
+
+get_total_amount_default: db "*2", CR, LF, "$3", CR, LF, "GET", CR, LF, "$19", CR, LF, "totalAmount:default", CR, LF
+get_total_amount_default_len: equ $ - get_total_amount_default
+
+get_total_amount_fallback: db "*2", CR, LF, "$3", CR, LF, "GET", CR, LF, "$20", CR, LF, "totalAmount:fallback", CR, LF
+get_total_amount_fallback_len: equ $ - get_total_amount_fallback
+
 section .bss
 redis_sockfd: resb 8            ; Redis socket file descriptor
 dynamic_msg_buffer: resb 2048   ; Buffer for building dynamic RESP messages
 length_str_buffer: resb 16      ; Buffer for converting length to string
+redis_response_buffer: resb 4096 ; Buffer for Redis responses
+total_requests_default: resb 8   ; Storage for default processor request count
+total_requests_fallback: resb 8  ; Storage for fallback processor request count
+total_amount_default: resb 8     ; Storage for default processor amount
+total_amount_fallback: resb 8    ; Storage for fallback processor amount
 
 section .text
 global redis_connect
 global redis_publish_body
 global redis_disconnect
+global redis_query_summary
+global redis_response_buffer
 
 redis_connect:
 	; Create client socket
@@ -205,6 +225,67 @@ redis_publish_body:
 	mov rax, 0       ; failure
 	
 .done:
+	pop rdx
+	pop rsi
+	pop rdi
+	ret
+
+; Redis query summary function - queries all 4 counters
+; Stores results in global variables for debugging
+; Returns: rax = 1 for success, 0 for failure
+redis_query_summary:
+	push rdi
+	push rsi
+	push rdx
+	
+	; Connect to Redis
+	call redis_connect
+	cmp qword [redis_sockfd], -1
+	je .query_failed
+	
+	; Query 1: GET totalRequests:default
+	mov rdi, [redis_sockfd]
+	mov rsi, get_total_requests_default
+	mov rdx, get_total_requests_default_len
+	mov rax, SYS_write
+	syscall
+	
+	; Read response
+	mov rdi, [redis_sockfd]
+	mov rsi, redis_response_buffer
+	mov rdx, 4096
+	mov rax, SYS_read
+	syscall
+	
+	; Store first response length in total_requests_default (for debugging)
+	mov [total_requests_default], rax
+	
+	; Query 2: GET totalRequests:fallback
+	mov rdi, [redis_sockfd]
+	mov rsi, get_total_requests_fallback
+	mov rdx, get_total_requests_fallback_len
+	mov rax, SYS_write
+	syscall
+	
+	; Read response
+	mov rdi, [redis_sockfd]
+	mov rsi, redis_response_buffer
+	mov rdx, 4096
+	mov rax, SYS_read
+	syscall
+	
+	; Store second response length in total_requests_fallback (for debugging)
+	mov [total_requests_fallback], rax
+	
+	; Disconnect
+	call redis_disconnect
+	mov rax, 1       ; success
+	jmp .query_done
+	
+.query_failed:
+	mov rax, 0       ; failure
+	
+.query_done:
 	pop rdx
 	pop rsi
 	pop rdi
