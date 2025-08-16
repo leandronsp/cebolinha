@@ -15,7 +15,6 @@ extern route_request
 extern send_payments_response
 
 %include "asm/include/syscalls.inc"
-%include "asm/include/common.inc"
 
 section .bss
 

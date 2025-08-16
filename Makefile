@@ -108,20 +108,29 @@ go.mod.tidy: ## Tidy Go module dependencies
 
 ##@ Assembly Build Commands
 
+# Assembly source and object files
+ASM_SOURCES = $(wildcard asm/*.asm)
+ASM_OBJECTS = $(ASM_SOURCES:asm/%.asm=build/%.o)
+
 asm.clean: ## Clean assembly build artifacts
 	@rm -rf build bin
 
-asm.build: ## Build assembly server
-	@mkdir -p build bin
-	@nasm -g -F dwarf -f elf64 -o build/server.o asm/server.asm
-	@nasm -g -F dwarf -f elf64 -o build/network.o asm/network.asm
-	@nasm -g -F dwarf -f elf64 -o build/http.o asm/http.asm
-	@nasm -g -F dwarf -f elf64 -o build/handler.o asm/handler.asm
-	@nasm -g -F dwarf -f elf64 -o build/redis.o asm/redis.asm
-	@ld -g -o bin/server build/*.o
+# Pattern rule for building assembly objects
+build/%.o: asm/%.asm | build
+	@nasm -g -F dwarf -f elf64 -o $@ $<
+
+# Build the server binary from all object files
+bin/server: $(ASM_OBJECTS) | bin
+	@ld -g -o $@ $^
+
+# Create build directories
+build bin:
+	@mkdir -p $@
+
+asm.build: bin/server ## Build assembly server
 
 asm.run: asm.build ## Build and run assembly server
 	@./bin/server
 
 asm.debug: asm.build ## Build and debug assembly server with GDB
-	@gdb -q bin/server
+	@gdb -q -x debug_http.gdb bin/server

@@ -1,63 +1,82 @@
-# 🐑 Ovelha
+# 🧅 Cebolinha
 
-Mais uma submissão para a [Rinha de Backend 2025](https://github.com/zanfranceschi/rinha-de-backend-2025), desta vez em Rust.
+A minimalist HTTP server in pure x86-64 assembly + Go workers for the [Rinha de Backend 2025](https://github.com/zanfranceschi/rinha-de-backend-2025).
 
-## Requisitos
+## Architecture
+
+- **Assembly HTTP API**: Single-threaded server written in pure x86-64 assembly (no libc)
+- **Go Workers**: Asynchronous payment processing with retry logic and fallback
+- **Redis**: Message queue and data storage
+- **NGINX**: Load balancer for multiple API instances
+
+## Requirements
 
 - Docker
 - Make
-- Força de vontade
 
-## Setup
-
-```bash
-make api.setup
-```
-
-## Comandos úteis
-
-### Gerenciamento dos Processadores de Pagamento
+## Quick Start
 
 ```bash
-# Iniciar processadores de pagamento
+# Setup and start all services
 make processors.up
-
-# Testar endpoints dos processadores
-make processors.test
-
-# Limpar dados dos processadores
-make processors.purge
-
-# Parar processadores
-make processors.down
-```
-
-### Desenvolvimento da API
-
-```bash
-# Iniciar ambiente de desenvolvimento
 make start.dev
 
-# Testar endpoints da API via NGINX (localhost:9999)
-make api.test.payments
-make api.test.summary
-make api.test.purge
-
-# Ver logs
-make compose.logs
-
-# Parar todos os serviços
-make compose.down
+# Test the API (via NGINX on port 9999)
+make api.test.payments    # Test POST /payments
+make api.test.summary      # Test GET /payments-summary
 ```
 
-### Teste de Performance
+## Commands
+
+### Payment Processors
+```bash
+make processors.up         # Start payment processors
+make processors.down       # Stop payment processors
+make processors.test       # Test processor endpoints
+make processors.purge      # Clear processor data
+```
+
+### API Development
+```bash
+make start.dev             # Start development environment
+make compose.logs          # View logs
+make compose.down          # Stop all services
+```
+
+### API Testing
+```bash
+make api.test.payments     # Test POST /payments endpoint
+make api.test.summary      # Test GET /payments-summary endpoint
+make api.test.purge        # Test POST /purge-payments endpoint
+make api.test.e2e          # Run end-to-end tests
+```
+
+### Performance Testing
+```bash
+make rinha                 # Run k6 performance test
+make rinha.official        # Run official Rinha test with scoring
+```
+
+### Build & Deploy
+```bash
+make docker.build          # Build Docker images
+make docker.push           # Push images to registry
+```
+
+## Assembly Development
 
 ```bash
-# Executar teste k6 (Rinha de Backend)
-make rinha
+make asm.build             # Build assembly server
+make asm.run               # Run assembly server locally
+make asm.debug             # Debug with GDB
+make asm.clean             # Clean build artifacts
 ```
 
-<img width="380" height="561" alt="Screenshot 2025-08-08 at 19 34 02" src="https://github.com/user-attachments/assets/cff932bd-0f65-4fa6-95f4-1631c6bbb809" />
+## Go Development
 
-
-> Até que Rust escala, né?
+```bash
+make go.build              # Build Go worker
+make go.run                # Run Go worker locally
+make go.test               # Run tests
+make go.fmt                # Format code
+```

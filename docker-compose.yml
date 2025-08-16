@@ -9,6 +9,11 @@ services:
       payment-processor:
       backend:
         ipv4_address: 172.20.0.3
+    depends_on:
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_started
 
   api02: 
     <<: *api
@@ -30,6 +35,9 @@ services:
       payment-processor:
       backend:
         ipv4_address: 172.20.0.5
+    depends_on:
+      redis:
+        condition: service_healthy
     environment:
       - WORKER_REDIS_POOL_SIZE=50
       - WORKER_POOL_SIZE=50
@@ -47,6 +55,11 @@ services:
     networks:
       backend:
         ipv4_address: 172.20.0.2
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
 
   nginx:
     image: nginx 

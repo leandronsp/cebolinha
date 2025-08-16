@@ -1,5 +1,4 @@
 %include "asm/include/syscalls.inc"
-%include "asm/include/common.inc"
 
 %define CR 0xD
 %define LF 0xA

@@ -15,9 +15,9 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 COPY asm asm
-COPY Makefile.asm ./Makefile
+COPY Makefile ./
 RUN mkdir -p build bin
-RUN make
+RUN make asm.build
 
 # ASM API target
 FROM --platform=linux/amd64 debian:stable-slim AS asm-api

@@ -19,8 +19,7 @@ asm/
 ├── handler.asm      # Route matching and request handling
 ├── redis.asm        # Redis client with RESP protocol implementation
 └── include/
-    ├── syscalls.inc # Linux system call numbers
-    └── common.inc   # Shared constants and definitions
+    └── syscalls.inc # Linux system call numbers
 ```
 
 ### Key Features
