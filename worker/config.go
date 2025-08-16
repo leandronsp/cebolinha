@@ -11,6 +11,7 @@ type Config struct {
 	JobChannelSize      int
 	DefaultTimeoutMs    int
 	FallbackTimeoutMs   int
+	MaxRetries          int
 }
 
 func Load() *Config {
@@ -20,6 +21,7 @@ func Load() *Config {
 		JobChannelSize:      getEnvAsInt("WORKER_JOB_CHANNEL_SIZE", 500),
 		DefaultTimeoutMs:    getEnvAsInt("WORKER_DEFAULT_TIMEOUT_MS", 3500),
 		FallbackTimeoutMs:   getEnvAsInt("WORKER_FALLBACK_TIMEOUT_MS", 300),
+		MaxRetries:          getEnvAsInt("WORKER_MAX_RETRIES", 3),
 	}
 }
 

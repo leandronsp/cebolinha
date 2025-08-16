@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -40,6 +41,13 @@ func Process(ctx context.Context, job PaymentJob, store *Store, redisClient *red
 	// Try fallback processor
 	if tryProcessor(ctx, "fallback", correlationID, amount, requestedAt, time.Duration(cfg.FallbackTimeoutMs)*time.Millisecond) {
 		store.Save(ctx, correlationID, "fallback", amount, requestedAt)
+		return
+	}
+
+	// Both processors failed - retry logic
+	if job.RetryCount < cfg.MaxRetries {
+		job.RetryCount++
+		requeueJob(ctx, job, redisClient)
 	}
 }
 
@@ -64,4 +72,18 @@ func tryProcessor(ctx context.Context, processorName, correlationID string, amou
 	defer resp.Body.Close()
 
 	return resp.StatusCode >= 200 && resp.StatusCode < 300
+}
+
+func requeueJob(ctx context.Context, job PaymentJob, redisClient *redis.Client) error {
+	// Marshal job back to JSON
+	jobJSON, err := json.Marshal(job)
+	if err != nil {
+		return err
+	}
+	
+	// Create message in same format as API: body;timestamp
+	message := fmt.Sprintf("%s;%s", string(jobJSON), job.RequestedAt)
+	
+	// Republish to same "payments" channel
+	return redisClient.Publish(ctx, "payments", message).Err()
 }
