@@ -2,98 +2,23 @@ package store
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
-// Store provides Redis operations for payment data
 type Store struct {
 	client *redis.Client
 }
 
-// PaymentData represents the structure saved to Redis
-type PaymentData struct {
-	Processor     string  `json:"processor"`
-	CorrelationID string  `json:"correlationId"`
-	Amount        float64 `json:"amount"`
-	Timestamp     string  `json:"timestamp"`
-}
-
-
-// New creates a new Store instance
 func New(client *redis.Client) *Store {
 	return &Store{client: client}
 }
 
-// Save atomically saves payment data using Redis transactions
-// Returns true if saved, false if already processed
-func (s *Store) Save(ctx context.Context, correlationID, processor string, amount float64, timestamp string) (bool, error) {
-	// Parse timestamp to get score for ZADD
-	parsedTime, err := time.Parse(time.RFC3339, timestamp)
-	if err != nil {
-		return false, fmt.Errorf("failed to parse timestamp: %w", err)
-	}
-	timestampScore := float64(parsedTime.UnixMilli()) / 1000.0
-
-	// Create payment data JSON
-	paymentData := PaymentData{
-		Processor:     processor,
-		CorrelationID: correlationID,
-		Amount:        amount,
-		Timestamp:     timestamp,
-	}
-	
-	paymentJSON, err := json.Marshal(paymentData)
-	if err != nil {
-		return false, fmt.Errorf("failed to marshal payment data: %w", err)
-	}
-
-	// Atomic check-and-set using SETNX
-	processedKey := fmt.Sprintf("processed:%s", correlationID)
+func (s *Store) Save(ctx context.Context, correlationID, processor string, amount float64, timestamp string) {
 	totalRequestsKey := fmt.Sprintf("totalRequests:%s", processor)
 	totalAmountKey := fmt.Sprintf("totalAmount:%s", processor)
 
-	// Check if already processed using SETNX
-	wasSet, err := s.client.SetNX(ctx, processedKey, 1, time.Hour).Result()
-	if err != nil {
-		return false, fmt.Errorf("failed to check if payment was already processed: %w", err)
-	}
-
-	if !wasSet {
-		// Already processed by another worker
-		return false, nil
-	}
-
-	// Use transaction to save payment data
-	_, err = s.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		// Add to payments log with timestamp score
-		pipe.ZAdd(ctx, "payments_log", redis.Z{
-			Score:  timestampScore,
-			Member: string(paymentJSON),
-		})
-		
-		// Increment counters
-		pipe.IncrBy(ctx, totalRequestsKey, 1)
-		pipe.IncrByFloat(ctx, totalAmountKey, amount)
-		
-		return nil
-	})
-
-	if err != nil {
-		return false, fmt.Errorf("failed to save payment data: %w", err)
-	}
-
-	return true, nil
+	s.client.IncrBy(ctx, totalRequestsKey, 1)
+	s.client.IncrByFloat(ctx, totalAmountKey, amount)
 }
-
-
-// IsProcessed checks if a payment has already been processed
-func (s *Store) IsProcessed(ctx context.Context, correlationID string) bool {
-	processedKey := fmt.Sprintf("processed:%s", correlationID)
-	exists, _ := s.client.Exists(ctx, processedKey).Result()
-	return exists > 0
-}
-
