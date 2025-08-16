@@ -31,13 +31,13 @@ services:
       backend:
         ipv4_address: 172.20.0.5
     environment:
-      - WORKER_REDIS_POOL_SIZE=10
-      - WORKER_THREAD_POOL_SIZE=10
+      - WORKER_REDIS_POOL_SIZE=5
+      - WORKER_THREAD_POOL_SIZE=5
       - WORKER_MAX_ATTEMPTS=3
       - WORKER_BACKOFF_SLEEP_MS=5
       - WORKER_DEFAULT_TIMEOUT_MS=300
       - WORKER_FALLBACK_TIMEOUT_MS=100
-      - WORKER_MAX_RETRIES=10
+      - WORKER_MAX_RETRIES=3
 
   redis:
     image: redis:7-alpine

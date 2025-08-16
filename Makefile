@@ -94,13 +94,10 @@ asm.clean: ## Clean assembly build artifacts
 asm.build: ## Build assembly server
 	@mkdir -p build bin
 	@nasm -g -F dwarf -f elf64 -o build/server.o asm/server.asm
-	@nasm -g -F dwarf -f elf64 -o build/sync.o asm/sync.asm
-	@nasm -g -F dwarf -f elf64 -o build/queue.o asm/queue.asm
 	@nasm -g -F dwarf -f elf64 -o build/network.o asm/network.asm
 	@nasm -g -F dwarf -f elf64 -o build/http.o asm/http.asm
 	@nasm -g -F dwarf -f elf64 -o build/handler.o asm/handler.asm
 	@nasm -g -F dwarf -f elf64 -o build/redis.o asm/redis.asm
-	@nasm -g -F dwarf -f elf64 -o build/threading.o asm/threading.asm
 	@ld -g -o bin/server build/*.o
 
 asm.run: asm.build ## Build and run assembly server
