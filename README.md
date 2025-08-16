@@ -48,7 +48,6 @@ make compose.down          # Stop all services
 ```bash
 make api.test.payments     # Test POST /payments endpoint
 make api.test.summary      # Test GET /payments-summary endpoint
-make api.test.purge        # Test POST /purge-payments endpoint
 make api.test.e2e          # Run end-to-end tests
 ```
 

@@ -2,8 +2,10 @@ SHELL = /bin/bash
 .ONESHELL:
 .DEFAULT_GOAL: help
 
-help: ## Prints available commands
+help: ## Show all available commands
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make \033[36m<target>\033[0m\n"} /^[.a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
+##@ Development Environment
 
 processors.up: ## Start the payment processor service
 	docker compose -f docker-compose.processor.yml up -d
@@ -11,8 +13,9 @@ processors.up: ## Start the payment processor service
 processors.down: ## Stop the payment processor service
 	docker compose -f docker-compose.processor.yml down --remove-orphans
 
-processors.logs: ## View logs for the payment processor service
-	docker compose -f docker-compose.processor.yml logs -f
+start.dev: ## Start the development environment
+	@make processors.up
+	@docker compose up -d nginx
 
 compose.down: ## Stop all services and remove containers
 	@docker compose down --remove-orphans
@@ -20,40 +23,17 @@ compose.down: ## Stop all services and remove containers
 compose.logs: ## View logs for all services
 	@docker compose logs -f
 
-api.setup: ## Set up the API service
-	@docker compose build
+##@ Testing
 
-start.dev: ## Start the development environment
-	@make processors.up
-	@docker compose up -d nginx
-
-api.bash: ## Open a bash shell in the API container
-	@docker compose run --rm api01 bash
-
-docker.stats: ## Show docker stats
-	@docker stats --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}"
-
-processors.test: ## Test payment processor endpoints (health and payments)
+processors.test: ## Test payment processor endpoints
 	@./scripts/test-health.sh
 	@./scripts/test-processors.sh
-
-processors.summary: ## Test payment processor endpoints (health and payments)
-	@./scripts/test-processors-summary.sh
-
-processors.purge: ## Purge payment processor data
-	@./scripts/purge-processors.sh
-
-processors.logs: ## View logs for the payment processor service
-	@docker compose -f docker-compose.processor.yml logs -f
 
 api.test.payments: ## Test POST /payments endpoint via nginx
 	@./scripts/test-api-payments.sh
 
 api.test.summary: ## Test GET /payments-summary endpoint via nginx
 	@./scripts/test-api-summary.sh
-
-api.test.purge: ## Test POST /purge-payments endpoint via nginx
-	@./scripts/test-api-purge.sh
 
 api.test.e2e: ## Run end-to-end tests for the API
 	@./scripts/e2e.sh
@@ -66,6 +46,8 @@ rinha.official: ## Run official Rinha test with scoring
 	@./scripts/reset.sh
 	@./scripts/run-local-test.sh
 
+##@ Build & Deploy
+
 docker.build: ## Build docker images for ASM API and Go worker
 	@docker build -t leandronsp/cebolinha-api --target asm-api --platform linux/amd64 .
 	@docker build -t leandronsp/cebolinha-worker --target go-worker --platform linux/amd64 .
@@ -74,63 +56,35 @@ docker.push: ## Push docker images to registry
 	@docker push leandronsp/cebolinha-api
 	@docker push leandronsp/cebolinha-worker
 
-docker.build.api: ## Build only the ASM API image
-	@docker build -t leandronsp/cebolinha-api --target asm-api --platform linux/amd64 .
+##@ Service Development (use make -C api <target> or make -C worker <target>)
 
-docker.build.worker: ## Build only the Go worker image
-	@docker build -t leandronsp/cebolinha-worker --target go-worker --platform linux/amd64 .
+api.help: ## Show assembly API commands
+	@make -C api help
 
-docker.push.api: ## Push only the ASM API image
-	@docker push leandronsp/cebolinha-api
+worker.help: ## Show Go worker commands  
+	@make -C worker help
 
-docker.push.worker: ## Push only the Go worker image
-	@docker push leandronsp/cebolinha-worker
+# Convenience targets that delegate to service Makefiles
+api.build: ## Build assembly server
+	@make -C api build
 
-##@ Go Worker Commands
+api.run: ## Build and run assembly server
+	@make -C api run
 
-go.build: ## Build Go worker binary
-	@go build -o worker/worker ./worker
+api.debug: ## Debug assembly server with GDB
+	@make -C api debug
 
-go.run: go.build ## Build and run Go worker locally
-	@./worker/worker
+api.clean: ## Clean assembly build artifacts
+	@make -C api clean
 
-go.clean: ## Clean Go build artifacts
-	@rm -f worker/worker
+worker.build: ## Build Go worker
+	@make -C worker build
 
-go.test: ## Run Go tests
-	@go test ./worker
+worker.run: ## Build and run Go worker
+	@make -C worker run
 
-go.fmt: ## Format Go code
-	@go fmt ./worker
+worker.test: ## Run Go worker tests
+	@make -C worker test
 
-go.mod.tidy: ## Tidy Go module dependencies
-	@go mod tidy -C worker
-
-##@ Assembly Build Commands
-
-# Assembly source and object files
-ASM_SOURCES = $(wildcard api/*.asm)
-ASM_OBJECTS = $(ASM_SOURCES:api/%.asm=api/build/%.o)
-
-asm.clean: ## Clean assembly build artifacts
-	@rm -rf api/build api/bin
-
-# Pattern rule for building assembly objects
-api/build/%.o: api/%.asm | api/build
-	@nasm -g -F dwarf -f elf64 -o $@ $<
-
-# Build the server binary from all object files
-api/bin/server: $(ASM_OBJECTS) | api/bin
-	@ld -g -o $@ $^
-
-# Create build directories
-api/build api/bin:
-	@mkdir -p $@
-
-asm.build: api/bin/server ## Build assembly server
-
-asm.run: asm.build ## Build and run assembly server
-	@./api/bin/server
-
-asm.debug: asm.build ## Build and debug assembly server with GDB
-	@gdb -q -x debug_http.gdb api/bin/server
+worker.clean: ## Clean Go worker artifacts
+	@make -C worker clean

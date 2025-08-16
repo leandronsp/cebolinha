@@ -6,14 +6,13 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o worker .
 
 # Build stage for Assembly
 FROM --platform=linux/amd64 ubuntu:22.04 AS asm-build
-WORKDIR /app
+WORKDIR /app/api
 RUN apt-get update && \
     apt-get install -y nasm binutils make && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 COPY api/ ./
-COPY Makefile ./
-RUN make asm.build
+RUN make build
 
 # ASM API target
 FROM --platform=linux/amd64 debian:stable-slim AS asm-api
