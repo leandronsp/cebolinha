@@ -1,4 +1,3 @@
 ; common.inc - Common constants shared across modules
 
-%define QUEUE_OFFSET_CAPACITY 50
-%define THREAD_POOL_SIZE 50
+; Currently no common constants needed for single-threaded HTTP server

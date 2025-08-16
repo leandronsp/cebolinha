@@ -13,38 +13,33 @@ The server has been modularized from a single assembly file into a clean, mainta
 ### Modular Structure
 ```
 asm/
-├── server.asm       # Main server coordination and control flow
-├── timer.asm        # Sleep/timing operations
-├── sync.asm         # Mutex and condition variable primitives
-├── queue.asm        # Thread-safe queue management
+├── server.asm       # Main server coordination and control flow (single-threaded)
 ├── network.asm      # Socket operations (create, bind, listen, accept)
 ├── http.asm         # HTTP request/response parsing and handling
 ├── handler.asm      # Route matching and request handling
 ├── redis.asm        # Redis client with RESP protocol implementation
-├── threading.asm    # Thread creation and stack management
 └── include/
     ├── syscalls.inc # Linux system call numbers
-    └── common.inc   # Shared constants (QUEUE_OFFSET_CAPACITY, THREAD_POOL_SIZE)
+    └── common.inc   # Shared constants and definitions
 ```
 
 ### Key Features
-- **Multi-threaded HTTP server**: Thread pool with 5 worker threads using Linux clone() syscalls
-- **Custom thread synchronization**: Mutex and condition variables using futex syscalls
-- **Dynamic queue management**: Thread-safe queue with automatic resizing using brk() syscalls
+- **Single-threaded HTTP server**: Simple accept loop handling one connection at a time
 - **HTTP request parsing**: Full HTTP/1.1 request parsing (verb, path, headers, body)
 - **REST API routing**: POST /payments endpoint with JSON body handling
 - **Redis integration**: Direct Redis RESP protocol client for message publishing
 - **Pure syscall implementation**: No libc dependencies - all functionality via direct Linux syscalls
 - **Modular design**: Each module has single responsibility with clear interfaces
+- **Go worker system**: Separate Go workers handle payment processing with retry logic
 
 ### Server Components
 - Socket creation, binding, and listening on port 3000
-- Thread pool management with custom threading primitives
-- Producer-consumer pattern with work queue for connection handling
+- Simple single-threaded accept loop for connection handling
 - HTTP request parsing (verb, path, Content-Length header, body)
-- Route matching and handling (POST /payments)
+- Route matching and handling (POST /payments, GET /payments-summary)
 - Redis client with RESP protocol for publishing JSON payloads
 - Error handling with proper HTTP status codes (200, 404, 500)
+- Go worker system for asynchronous payment processing with fallback logic
 
 ## Build Commands
 
@@ -60,12 +55,10 @@ make debug      # Build and run with GDB debugger
 ```bash
 # Build all modules
 nasm -f elf64 -o build/server.o asm/server.asm
-nasm -f elf64 -o build/timer.o asm/timer.asm
-nasm -f elf64 -o build/sync.o asm/sync.asm
-nasm -f elf64 -o build/queue.o asm/queue.asm
 nasm -f elf64 -o build/network.o asm/network.asm
 nasm -f elf64 -o build/http.o asm/http.asm
-nasm -f elf64 -o build/threading.o asm/threading.asm
+nasm -f elf64 -o build/handler.o asm/handler.asm
+nasm -f elf64 -o build/redis.o asm/redis.asm
 # Link all object files
 ld -o bin/server build/*.o
 ./bin/server
@@ -115,16 +108,14 @@ When working on this codebase:
 - **Preserve register usage**: Be careful with register preservation across module boundaries
 
 ### Technical Details
-- The server runs on port 3000 and serves a simple "Hello, World!" HTML response
-- Thread pool size is configurable via `THREAD_POOL_SIZE` in `common.inc`
-- Queue capacity grows dynamically by `QUEUE_OFFSET_CAPACITY` bytes
-- Memory management is manual using brk() syscalls for queue expansion
-- No external dependencies - completely self-contained assembly implementation
+- The assembly server runs on port 3000 and handles HTTP requests
+- Single-threaded design for simplicity and reliability
+- Memory management uses direct Linux syscalls (no libc dependencies)
+- Go workers handle payment processing asynchronously through Redis
+- No external dependencies in assembly code - completely self-contained implementation
 
 ### Module Interface Guidelines
-- **timer.asm**: Exports `timer_sleep` - preserves all registers
-- **sync.asm**: Exports mutex/condvar functions - uses futex syscalls
-- **queue.asm**: Expects `r8` for enqueue input, returns `rax` from dequeue
+- **server.asm**: Main entry point - simple single-threaded accept loop
 - **network.asm**: Socket functions operate on global `sockfd`
 - **http.asm**: 
   - Expects file descriptor in `r10` for response operations
@@ -135,7 +126,6 @@ When working on this codebase:
   - `redis_publish_body(body_ptr, body_len)` - publishes JSON to Redis "payments" channel
   - Uses stack-based parameters: `rsi` = body_ptr, `rdx` = body_len
   - Returns 1 for success, 0 for failure
-- **threading.asm**: Takes handler address in `rdi`, creates thread with stack
 
 ## API Testing
 

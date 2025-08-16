@@ -33,7 +33,8 @@ services:
         condition: service_healthy
     environment:
       - WORKER_REDIS_POOL_SIZE=10
-      - WORKER_THREAD_POOL_SIZE=10
+      - WORKER_POOL_SIZE=10
+      - WORKER_JOB_CHANNEL_SIZE=100
       - WORKER_MAX_ATTEMPTS=3
       - WORKER_BACKOFF_SLEEP_MS=5
       - WORKER_DEFAULT_TIMEOUT_MS=300
@@ -69,8 +70,6 @@ services:
       - api02
       - worker
 
-volumes:
-  cargodeps:
 
 networks:
   payment-processor:
