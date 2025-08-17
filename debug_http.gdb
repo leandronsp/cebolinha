@@ -1,4 +1,4 @@
-# GDB script for debugging Cebolinha HTTP parsing
+# GDB script for debugging Dinossauro HTTP parsing
 # Usage: gdb -x debug_http.gdb bin/server
 
 # Setup for multi-threading
@@ -13,7 +13,7 @@ break action
 # Display helpful info when breakpoints hit
 echo \n
 echo =======================================\n
-echo  Cebolinha HTTP Debug Session Started\n
+echo  Dinossauro HTTP Debug Session Started\n
 echo =======================================\n
 echo \n
 echo When breakpoint hits:\n

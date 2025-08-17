@@ -25,7 +25,7 @@ if [ $success -eq 0 ]; then
     
     # Run the official k6 test with 550 requests
     MAX_REQUESTS=550
-    PARTICIPANT="ovelha"
+    PARTICIPANT="dinossauro"
     TOKEN=$(uuidgen)
     
     k6 run -e MAX_REQUESTS=$MAX_REQUESTS -e PARTICIPANT=$PARTICIPANT -e TOKEN=$TOKEN rinha-test/rinha.js

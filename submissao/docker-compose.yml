@@ -1,6 +1,6 @@
 services:
   api01: &api
-    image: leandronsp/cebolinha-api:latest
+    image: leandronsp/dinossauro-api:latest
     container_name: api01
     hostname: api01
     networks:
@@ -28,7 +28,7 @@ services:
         ipv4_address: 172.20.0.4
 
   worker:
-    image: leandronsp/cebolinha-worker:latest
+    image: leandronsp/dinossauro-worker:latest
     container_name: worker
     hostname: worker
     networks:

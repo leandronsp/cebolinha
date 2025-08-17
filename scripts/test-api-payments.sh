@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "=== Testing Pru API POST /payments via nginx (localhost:9999) ==="
+echo "=== Testing Dinossauro API POST /payments via nginx (localhost:9999) ==="
 echo
 
 # Generate UUID and timestamp for request

@@ -1,5 +1,5 @@
 ; syscalls.inc - Linux x86-64 system call numbers
-; Used by all modules in the Cebolinha HTTP server
+; Used by all modules in the Dinossauro HTTP server
 
 ; I/O system calls
 %define SYS_read 0

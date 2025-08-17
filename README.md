@@ -1,4 +1,4 @@
-# 🧅 Cebolinha
+# 🦕 Dinossauro
 
 A minimalist HTTP server in pure x86-64 Assembly + Go workers for the [Rinha de Backend 2025](https://github.com/zanfranceschi/rinha-de-backend-2025).
 

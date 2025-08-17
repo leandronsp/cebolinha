@@ -49,12 +49,12 @@ rinha.official: ## Run official Rinha test with scoring
 ##@ Build & Deploy
 
 docker.build: ## Build docker images for ASM API and Go worker
-	@docker build -t leandronsp/cebolinha-api --target asm-api --platform linux/amd64 .
-	@docker build -t leandronsp/cebolinha-worker --target go-worker --platform linux/amd64 .
+	@docker build -t leandronsp/dinossauro-api --target asm-api --platform linux/amd64 .
+	@docker build -t leandronsp/dinossauro-worker --target go-worker --platform linux/amd64 .
 
 docker.push: ## Push docker images to registry
-	@docker push leandronsp/cebolinha-api
-	@docker push leandronsp/cebolinha-worker
+	@docker push leandronsp/dinossauro-api
+	@docker push leandronsp/dinossauro-worker
 
 ##@ Service Development (use make -C api <target> or make -C worker <target>)
 

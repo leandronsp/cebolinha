@@ -269,7 +269,7 @@ export function handleSummary(data) {
     + (liquid_partial_amount * p_99_bonus)
     - (liquid_partial_amount * inconsistencies_fine);
 
-  const name = __ENV.PARTICIPANT ?? "ovelha";
+  const name = __ENV.PARTICIPANT ?? "dinossauro";
 
   const custom_data = {
     participante: name,

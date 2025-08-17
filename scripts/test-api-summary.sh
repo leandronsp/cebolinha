@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "=== Testing Pru API GET /payments-summary via nginx (localhost:9999) ==="
+echo "=== Testing Dinossauro API GET /payments-summary via nginx (localhost:9999) ==="
 echo
 
 echo "Testing GET /payments-summary..."

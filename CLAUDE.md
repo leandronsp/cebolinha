@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is "Cebolinha" - a pure x86-64 assembly HTTP server that demonstrates low-level systems programming. The server implements a basic HTTP/1.1 web server using only Linux system calls, without any external libraries or frameworks.
+This is "Dinossauro" - a pure x86-64 assembly HTTP server that demonstrates low-level systems programming. The server implements a basic HTTP/1.1 web server using only Linux system calls, without any external libraries or frameworks.
 
 ## Architecture
 
@@ -98,8 +98,8 @@ docker compose up
 docker-compose up --build
 
 # Manual Docker build
-docker build -t cebolinha .
-docker run -p 3000:3000 cebolinha
+docker build -t dinossauro .
+docker run -p 3000:3000 dinossauro
 ```
 
 **Note**: Direct Docker on Apple Silicon may cause the server to hang due to x86-64 emulation issues with complex threading. Use the Lima VM approach for reliable execution.
