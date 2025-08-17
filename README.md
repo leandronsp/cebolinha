@@ -71,13 +71,3 @@ make asm.run               # Run assembly server locally
 make asm.debug             # Debug with GDB
 make asm.clean             # Clean build artifacts
 ```
-
-## Go Development
-
-```bash
-cd worker                  # Enter worker directory
-go build                   # Build Go worker
-go run .                   # Run Go worker locally
-go test ./...              # Run tests
-go fmt ./...               # Format code
-```
