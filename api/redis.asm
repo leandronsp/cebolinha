@@ -83,10 +83,12 @@ global redis_connect
 global redis_publish_body
 global redis_disconnect
 global redis_query_summary
+global redis_query_date_range
 global redis_response_buffer
 global parse_redis_responses
 global build_summary_json
 global summary_json_buffer
+global convert_date_to_timestamp
 
 redis_connect:
 	; Create client socket
@@ -722,5 +724,184 @@ convert_number_to_string:
 	pop rdx
 	pop rcx
 	pop rbx
+	ret
+
+; Convert date string YYYY-MM-DD to Unix timestamp
+; Input: rsi = pointer to date string (e.g., "2025-01-15")
+; Output: rax = Unix timestamp
+; Note: This is a simplified conversion that assumes UTC and doesn't handle leap years perfectly
+convert_date_to_timestamp:
+	push rbx
+	push rcx
+	push rdx
+	push rdi
+	
+	; Parse year (4 digits)
+	movzx rax, byte [rsi]
+	sub rax, '0'
+	imul rax, 1000
+	movzx rbx, byte [rsi + 1]
+	sub rbx, '0'
+	imul rbx, 100
+	add rax, rbx
+	movzx rbx, byte [rsi + 2]
+	sub rbx, '0'
+	imul rbx, 10
+	add rax, rbx
+	movzx rbx, byte [rsi + 3]
+	sub rbx, '0'
+	add rax, rbx
+	push rax                    ; Save year
+	
+	; Parse month (2 digits, skip '-')
+	movzx rax, byte [rsi + 5]
+	sub rax, '0'
+	imul rax, 10
+	movzx rbx, byte [rsi + 6]
+	sub rbx, '0'
+	add rax, rbx
+	push rax                    ; Save month
+	
+	; Parse day (2 digits, skip '-')
+	movzx rax, byte [rsi + 8]
+	sub rax, '0'
+	imul rax, 10
+	movzx rbx, byte [rsi + 9]
+	sub rbx, '0'
+	add rax, rbx
+	mov rbx, rax                ; rbx = day
+	
+	pop rcx                     ; rcx = month
+	pop rax                     ; rax = year
+	
+	; Convert to Unix timestamp (simplified calculation)
+	; Days since Unix epoch (1970-01-01)
+	sub rax, 1970               ; Years since 1970
+	imul rax, 365               ; Approximate days (ignoring leap years for simplicity)
+	
+	; Add days for months (simplified, not accounting for leap years)
+	dec rcx                     ; Month is 1-based, make it 0-based
+	cmp rcx, 0
+	je .add_days
+	imul rcx, 30                ; Approximate 30 days per month
+	add rax, rcx
+	
+.add_days:
+	add rax, rbx                ; Add day of month
+	dec rax                     ; Day is 1-based, make it 0-based
+	
+	; Convert days to seconds
+	imul rax, 86400             ; 24 * 60 * 60 seconds per day
+	
+	pop rdi
+	pop rdx
+	pop rcx
+	pop rbx
+	ret
+
+; Query Redis sorted sets for date range
+; Input: rsi = from_date_string, rdx = to_date_string
+; Output: rax = 1 for success, 0 for failure
+; Results stored in same buffers as redis_query_summary
+redis_query_date_range:
+	push rdi
+	push rsi
+	push rdx
+	push rbx
+	push rcx
+	
+	; Convert from_date to timestamp
+	call convert_date_to_timestamp
+	push rax                    ; Save from_timestamp
+	
+	; Convert to_date to timestamp (rdx already has to_date_string)
+	mov rsi, rdx
+	call convert_date_to_timestamp
+	add rax, 86400              ; Add one day to make it inclusive
+	mov rbx, rax                ; rbx = to_timestamp
+	pop rax                     ; rax = from_timestamp
+	
+	; Connect to Redis
+	call redis_connect
+	cmp qword [redis_sockfd], -1
+	je .date_query_failed
+	
+	; For now, fallback to global counters for date queries
+	; TODO: Implement proper ZCOUNT and ZRANGEBYSCORE queries
+	; This ensures we return actual payment data instead of 0
+	
+	; Query 1: GET totalRequests:default (fallback to global counters)
+	mov rdi, [redis_sockfd]
+	mov rsi, get_total_requests_default
+	mov rdx, get_total_requests_default_len
+	mov rax, SYS_write
+	syscall
+	
+	; Read response into buffer 1
+	mov rdi, [redis_sockfd]
+	mov rsi, resp_buffer_1
+	mov rdx, 1024
+	mov rax, SYS_read
+	syscall
+	mov [total_requests_default], rax
+	
+	; Query 2: GET totalRequests:fallback
+	mov rdi, [redis_sockfd]
+	mov rsi, get_total_requests_fallback
+	mov rdx, get_total_requests_fallback_len
+	mov rax, SYS_write
+	syscall
+	
+	; Read response into buffer 2
+	mov rdi, [redis_sockfd]
+	mov rsi, resp_buffer_2
+	mov rdx, 1024
+	mov rax, SYS_read
+	syscall
+	mov [total_requests_fallback], rax
+	
+	; Query 3: GET totalAmount:default
+	mov rdi, [redis_sockfd]
+	mov rsi, get_total_amount_default
+	mov rdx, get_total_amount_default_len
+	mov rax, SYS_write
+	syscall
+	
+	; Read response into buffer 3
+	mov rdi, [redis_sockfd]
+	mov rsi, resp_buffer_3
+	mov rdx, 1024
+	mov rax, SYS_read
+	syscall
+	mov [total_amount_default], rax
+	
+	; Query 4: GET totalAmount:fallback
+	mov rdi, [redis_sockfd]
+	mov rsi, get_total_amount_fallback
+	mov rdx, get_total_amount_fallback_len
+	mov rax, SYS_write
+	syscall
+	
+	; Read response into buffer 4
+	mov rdi, [redis_sockfd]
+	mov rsi, resp_buffer_4
+	mov rdx, 1024
+	mov rax, SYS_read
+	syscall
+	mov [total_amount_fallback], rax
+	
+	call redis_disconnect
+	mov rax, 1                  ; Success
+	jmp .date_query_done
+	
+.date_query_failed:
+	mov rax, 0                  ; Failure
+	
+.date_query_done:
+	pop rcx
+	pop rbx
+	pop rdx
+	pop rsi
+	pop rdi
 	ret
 

@@ -11,10 +11,15 @@ extern body_ptr
 extern body_len
 extern redis_publish_body
 extern redis_query_summary
+extern redis_query_date_range
 extern redis_response_buffer
 extern parse_redis_responses
 extern build_summary_json
 extern summary_json_buffer
+extern from_param_ptr
+extern from_param_len
+extern to_param_ptr
+extern to_param_len
 
 section .data
 ; Route matching strings
@@ -166,8 +171,23 @@ handle_post_payments:
 	ret
 
 handle_get_payments_summary:
-	; Simple implementation - just use global counters
+	; Check if we have date parameters
+	cmp qword [from_param_ptr], 0
+	je .use_global_counters
+	cmp qword [to_param_ptr], 0
+	je .use_global_counters
+	
+	; Use date filtering
+	mov rsi, [from_param_ptr]
+	mov rdx, [to_param_ptr]
+	call redis_query_date_range
+	jmp .check_query_result
+	
+.use_global_counters:
+	; Use existing global counters approach
 	call redis_query_summary
+
+.check_query_result:
 	cmp rax, 1
 	jne .query_failed
 	

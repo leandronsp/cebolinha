@@ -9,6 +9,7 @@ extern close_connection
 extern read_request
 extern parse_request
 extern parse_headers
+extern parse_query_params
 extern print_request_info
 extern route_request
 extern send_payments_response
@@ -31,6 +32,7 @@ _start:
 action:
 	call read_request       ; Read HTTP request
 	call parse_request      ; Parse verb and path
+	call parse_query_params ; Parse query parameters (from/to)
 	call parse_headers      ; Parse headers and body
 	call print_request_info ; Print to stdout
 	
